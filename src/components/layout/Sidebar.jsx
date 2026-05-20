@@ -41,7 +41,8 @@ export default function Sidebar({ activeSection, onSectionChange, activeView, on
       {isTickets && (
         <div className="k-sidebar">
           <div className="flex items-center justify-between px-3 py-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-            <span className="font-semibold text-white text-sm">Tickets</span>
+            <span className="font-semibold text-white text-sm">Views</span>
+            <button style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 13, lineHeight: 1 }}>+</button>
           </div>
           <div className="flex-1 overflow-y-auto py-1">
             <div className="sidebar-section">OVERALL</div>
