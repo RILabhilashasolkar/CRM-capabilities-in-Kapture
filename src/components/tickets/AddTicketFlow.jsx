@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ChevronUp, ChevronDown, Search, User, Truck, Calendar, ShoppingBag, Upload, Folder, X } from 'lucide-react';
-import { customers, customerOrders } from '../../data/dummyData';
+import { ChevronUp, ChevronDown, Search, User, Truck, Calendar, ShoppingBag, Upload, Folder, X, Wrench, AlertCircle } from 'lucide-react';
+import { customers, customerOrders, serviceOrders } from '../../data/dummyData';
+import CRMCreateSR from '../crm/CRMCreateSR';
 
 // Folder tree matching real Kapture
 const FOLDER_TREE = {
@@ -30,11 +31,27 @@ const FOLDER_TREE = {
   },
 };
 
+function SOStatusBadge({ status }) {
+  const map = {
+    'Created':     { bg: '#f3e8ff', color: '#7c3aed' },
+    'Assigned':    { bg: '#dbeafe', color: '#1d4ed8' },
+    'In Progress': { bg: '#fff7ed', color: '#c2410c' },
+    'Completed':   { bg: '#d1fae5', color: '#065f46' },
+    'Cancelled':   { bg: '#fee2e2', color: '#dc2626' },
+  };
+  const s = map[status] || { bg: '#f3f4f6', color: '#374151' };
+  return (
+    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: s.bg, color: s.color, whiteSpace: 'nowrap' }}>
+      {status}
+    </span>
+  );
+}
+
 export default function AddTicketFlow({ onBack }) {
-  const [step, setStep] = useState('search'); // 'search' | 'orders' | 'create'
+  const [step, setStep] = useState('search'); // 'search' | 'orders' | 'create' | 'createSR'
 
   // Search form state
-  const [form, setForm] = useState({ customer: '', name: '', phone: '', email: '', customerCode: '', orderId: '', erpOrderId: '', company: '' });
+  const [form, setForm] = useState({ customer: '', name: '', phone: '', email: '', customerCode: '', orderId: '', erpOrderId: '', company: '', soNumber: '' });
   const [searchSectionOpen, setSearchSectionOpen] = useState(true);
   const [searchError, setSearchError] = useState('');
 
@@ -48,6 +65,13 @@ export default function AddTicketFlow({ onBack }) {
   const [taggedProduct, setTaggedProduct] = useState(null);
   const [selectedProductSku, setSelectedProductSku] = useState(null);
   const [orderFilterId, setOrderFilterId] = useState('');
+
+  // SO flow state (new)
+  const [foundSO, setFoundSO] = useState(null);
+  const [taggedSO, setTaggedSO] = useState(null);
+  const [createSRFor, setCreateSRFor] = useState(null);
+  const [newlyCreatedSOs, setNewlyCreatedSOs] = useState([]);
+  const [srCreatedBanner, setSrCreatedBanner] = useState(null);
 
   // Folder + ticket state
   const [selType, setSelType] = useState('');
@@ -63,32 +87,109 @@ export default function AddTicketFlow({ onBack }) {
   // ── Search ──────────────────────────────────────────────────────────────
   const handleSearch = () => {
     let cust = null, ords = [], phone = '';
+    setFoundSO(null);
+
+    // 2c: Search by service order number
+    if (form.soNumber.trim()) {
+      const soNum = form.soNumber.trim();
+      const so = serviceOrders.find(s =>
+        s.id === soNum || s.serviceRefId === soNum ||
+        s.sapServiceOrderNo.toLowerCase() === soNum.toLowerCase()
+      );
+      if (!so) { setSearchError(`No service order found for "${soNum}". Try: 86379827 or SR-JMD-2026-0044`); return; }
+      phone = so.customer.phone;
+      cust = customers[phone] || { name: so.customer.name, code: so.customer.code, email: '—', phone: so.customer.phone };
+      ords = customerOrders[phone] || [];
+      setFoundCustomer(cust);
+      setOrders(ords);
+      setFoundSO(so);
+      setExpandedOrderId(so.orderId);
+      setSearchError('');
+      setStep('orders');
+      return;
+    }
+
+    // 2a: Mobile number search (irrespective of multiple customer IDs)
     const q = form.phone || form.customer;
     if (q && customers[q]) { cust = customers[q]; ords = customerOrders[q] || []; phone = q; }
     else if (form.customerCode) {
       Object.entries(customers).forEach(([p, c]) => { if (c.code === form.customerCode) { cust = c; ords = customerOrders[p] || []; phone = p; } });
     } else if (form.name) {
       Object.entries(customers).forEach(([p, c]) => { if (c.name.toLowerCase().includes(form.name.toLowerCase())) { cust = c; ords = customerOrders[p] || []; phone = p; } });
+    } else if (form.orderId) {
+      // 2b: Order ID search — customer ID is the key parameter
+      Object.entries(customerOrders).forEach(([p, oList]) => {
+        const match = oList.find(o => o.orderId.toLowerCase() === form.orderId.toLowerCase());
+        if (match) { cust = customers[p]; ords = oList; phone = p; }
+      });
     }
-    if (!cust) { setSearchError('No customer found. Try phone: 9916265181 or 9689808472'); return; }
+
+    if (!cust) { setSearchError('No customer found. Try phone: 9916265181 or SO No: 86379827'); return; }
     setFoundCustomer(cust);
     setOrders(ords);
     setSearchError('');
     setStep('orders');
   };
 
-  // ── Tag Order ────────────────────────────────────────────────────────────
+  // ── Tag order → create ticket step ──────────────────────────────────────
   const handleTagOrder = (order) => {
     const prod = order.products.find(p => p.sku === selectedProductSku) || order.products.find(p => p.family !== 'Service');
     setTaggedOrder(order);
     setTaggedProduct(prod);
+    setTaggedSO(null);
     setTitle(prod ? `${prod.name} – ${prod.family} issue` : `Order ${order.orderId}`);
     setStep('create');
+  };
+
+  // ── Tag SO → create ticket step (2c / 5) ────────────────────────────────
+  const handleTagSO = (so) => {
+    const soOrder = orders.find(o => o.orderId === so.orderId);
+    const prod = soOrder?.products.find(p => p.sku === so.product?.sku) ||
+      soOrder?.products.find(p => p.family !== 'Service') ||
+      { name: so.product?.name || 'Product', sku: so.product?.sku || '', family: so.product?.family || '' };
+    setTaggedOrder(soOrder || null);
+    setTaggedProduct(prod);
+    setTaggedSO(so);
+    setTitle(`${so.type} – ${so.product?.name || prod.name} – Service Follow-up`);
+    setStep('create');
+  };
+
+  // ── Create SR for a product (3) ──────────────────────────────────────────
+  const handleCreateSRForProduct = (order, product) => {
+    setCreateSRFor({ order, product });
+    setStep('createSR');
+  };
+
+  // ── SR created → show banner + add to orders (4) ────────────────────────
+  const handleSRSuccess = (soId) => {
+    const newSO = {
+      id: soId,
+      sapServiceOrderNo: `SAP-SO-${Math.floor(88001000 + Math.random() * 999)}`,
+      serviceRefId: `SR-NEW-${soId}`,
+      type: createSRFor?.product?.family === 'Air Conditioner' ? 'Installation' : 'Repair',
+      status: 'Created',
+      product: { name: createSRFor?.product?.name || 'Product', sku: createSRFor?.product?.sku || '', family: createSRFor?.product?.family || '' },
+      orderId: createSRFor?.order?.orderId,
+      customer: foundCustomer ? { name: foundCustomer.name, phone: foundCustomer.phone, code: foundCustomer.code } : {},
+      engineer: { name: 'To be assigned', phone: '—' },
+      appointmentDate: 'To be scheduled',
+      estimatedTAT: '3–5 business days',
+      createdDate: new Date().toLocaleDateString('en-IN'),
+    };
+    setNewlyCreatedSOs(prev => [...prev, newSO]);
+    setSrCreatedBanner(newSO);
+    setExpandedOrderId(createSRFor?.order?.orderId);
+    setCreateSRFor(null);
+    setStep('orders');
   };
 
   const toggleAccordion = (key) => setOpenAccordions(p => ({ ...p, [key]: !p[key] }));
 
   const filteredOrders = orderFilterId ? orders.filter(o => o.orderId.toLowerCase().includes(orderFilterId.toLowerCase())) : orders;
+
+  const customerPhone = foundCustomer?.phone;
+  const allSOs = [...serviceOrders, ...newlyCreatedSOs];
+  const customerSOs = allSOs.filter(so => so.customer?.phone === customerPhone);
 
   // ── Success ──────────────────────────────────────────────────────────────
   if (submitted) {
@@ -102,11 +203,50 @@ export default function AddTicketFlow({ onBack }) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 }}>
           <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, color: '#16a34a' }}>✓</div>
           <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a2e' }}>Ticket Created Successfully</div>
-          <div style={{ fontSize: 13, color: '#6b7280' }}>Ticket ID: <strong>{ticketId}</strong></div>
+          <div style={{ fontSize: 13, color: '#6b7280' }}>Ticket ID: <strong style={{ color: '#2563eb' }}>{ticketId}</strong></div>
           {taggedOrder && <div style={{ fontSize: 12.5, color: '#6b7280' }}>Order <strong>{taggedOrder.orderId}</strong> tagged to ticket</div>}
+
+          {/* 5/6: Deep SAP CRM integration box */}
+          {taggedSO && (
+            <div style={{ background: '#f0f4ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: '14px 18px', maxWidth: 380, width: '100%', marginTop: 4 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#3730a3', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Wrench size={13} /> Kapture ↔ SAP CRM Integration
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12.5 }}>
+                {[
+                  ['Service Order', `#${taggedSO.id}`, '#7c3aed'],
+                  ['SAP CRM Reference', taggedSO.sapServiceOrderNo, '#3730a3'],
+                  ['Service Type', taggedSO.type, ''],
+                  ['Current Status', taggedSO.status, '#f97316'],
+                ].map(([l, v, c]) => (
+                  <div key={l} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#6b7280' }}>{l}</span>
+                    <strong style={{ color: c || '#1a1a2e' }}>{v}</strong>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 10, background: '#e0e7ff', borderRadius: 5, padding: '7px 10px', fontSize: 11.5, color: '#3730a3' }}>
+                ✓ Status updates from SAP CRM will be reflected in Kapture automatically. Track from Orders &amp; Service section.
+              </div>
+            </div>
+          )}
+
           <button className="kap-search-attach" style={{ marginTop: 8, maxWidth: 200 }} onClick={onBack}>BACK TO TICKETS</button>
         </div>
       </div>
+    );
+  }
+
+  // ── STEP: createSR (reuse CRMCreateSR component) ─────────────────────────
+  if (step === 'createSR') {
+    return (
+      <CRMCreateSR
+        order={createSRFor?.order}
+        product={createSRFor?.product}
+        customer={foundCustomer}
+        onBack={() => setStep('orders')}
+        onSuccess={handleSRSuccess}
+      />
     );
   }
 
@@ -150,6 +290,25 @@ export default function AddTicketFlow({ onBack }) {
                     </div>
                   ))}
                 </div>
+
+                {/* 2c: Service Order search */}
+                <div style={{ margin: '12px 0 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>OR SEARCH BY SERVICE ORDER</span>
+                  <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                </div>
+                <div style={{ border: '1.5px solid #a78bfa', borderRadius: 6, padding: '10px 12px', background: '#faf5ff', marginBottom: 12 }}>
+                  <label className="kap-label" style={{ color: '#7c3aed', fontWeight: 700 }}>Service Order No. / SR Number</label>
+                  <input
+                    className="kap-input"
+                    style={{ borderColor: '#a78bfa', background: 'white' }}
+                    placeholder="e.g. 86379827 or SR-JMD-2026-0044"
+                    value={form.soNumber}
+                    onChange={e => setF('soNumber', e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                  />
+                </div>
+
                 {searchError && <div style={{ color: '#dc2626', fontSize: 12, marginBottom: 8 }}>{searchError}</div>}
                 <button className="kap-search-attach" onClick={handleSearch}>SEARCH AND ATTACH</button>
               </div>
@@ -189,6 +348,61 @@ export default function AddTicketFlow({ onBack }) {
           <span className="at-title">Add Ticket</span>
         </div>
         <div className="at-body">
+
+          {/* 2c: Service Order Found banner */}
+          {foundSO && (
+            <div style={{ background: '#fdf4ff', border: '1.5px solid #e9d5ff', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13, color: '#7c3aed' }}>
+                  <Wrench size={14} /> Service Order Found
+                </div>
+                <SOStatusBadge status={foundSO.status} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontSize: 12.5, marginBottom: 10 }}>
+                {[
+                  ['SO Number', `#${foundSO.id}`],
+                  ['SAP Reference', foundSO.sapServiceOrderNo],
+                  ['Service Type', foundSO.type],
+                  ['Product', foundSO.product.name],
+                  ['Engineer', foundSO.engineer.name],
+                  ['Appointment', foundSO.appointmentDate],
+                ].map(([l, v]) => (
+                  <div key={l} style={{ display: 'flex', gap: 6 }}>
+                    <span style={{ color: '#9ca3af', flexShrink: 0 }}>{l}:</span>
+                    <strong style={{ color: '#3b0764' }}>{v}</strong>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  style={{ flex: 1, background: '#7c3aed', color: 'white', border: 'none', borderRadius: 6, padding: '7px 0', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+                  onClick={() => handleTagSO(foundSO)}
+                >
+                  Create Ticket for this Service Order
+                </button>
+                <button
+                  style={{ background: 'white', color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 6, padding: '7px 12px', fontSize: 12.5, cursor: 'pointer' }}
+                  onClick={() => setFoundSO(null)}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 4: SR Created success banner */}
+          {srCreatedBanner && (
+            <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 12.5 }}>
+                <strong style={{ color: '#16a34a' }}>✓ Service Request Created Successfully</strong>
+                <div style={{ color: '#374151', marginTop: 2 }}>
+                  SO# <strong>{srCreatedBanner.id}</strong> · SAP: <strong>{srCreatedBanner.sapServiceOrderNo}</strong> · Visible in Orders &amp; Service section
+                </div>
+              </div>
+              <X size={14} color="#9ca3af" style={{ cursor: 'pointer', flexShrink: 0 }} onClick={() => setSrCreatedBanner(null)} />
+            </div>
+          )}
+
           {/* Customer Details */}
           <div className="kap-cust-card">
             <div className="kap-cust-card-hdr" onClick={() => setCustomerOpen(p => !p)}>
@@ -248,11 +462,14 @@ export default function AddTicketFlow({ onBack }) {
 
           {filteredOrders.map(order => {
             const isExpanded = expandedOrderId === order.orderId;
-            const mainProducts = order.products.filter(p => p.family !== 'Service');
             const prodInfoOpen = openAccordions[`prod-${order.orderId}`];
             const orderInfoOpen = openAccordions[`info-${order.orderId}`];
             const deliveryOpen = openAccordions[`delivery-${order.orderId}`];
             const trackingOpen = openAccordions[`tracking-${order.orderId}`];
+            const soSectionOpen = openAccordions[`so-${order.orderId}`] !== false;
+
+            // 2a/2b/4: All SOs for this order (including newly created)
+            const orderSOs = customerSOs.filter(so => so.orderId === order.orderId);
 
             return (
               <div key={order.orderId} className="kap-order-card">
@@ -302,6 +519,7 @@ export default function AddTicketFlow({ onBack }) {
                                 <th>Quantity</th>
                                 <th>Selling Price</th>
                                 <th>Delivery Type</th>
+                                <th>Service</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -315,12 +533,21 @@ export default function AddTicketFlow({ onBack }) {
                                     <div style={{ width: 32, height: 32, background: '#f3f4f6', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#9ca3af' }}>IMG</div>
                                   </td>
                                   <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{p.sku}</td>
-                                  <td style={{ maxWidth: 260 }}>
-                                    <div style={{ fontSize: 12.5 }}>{p.name}</div>
-                                  </td>
+                                  <td style={{ maxWidth: 220 }}><div style={{ fontSize: 12.5 }}>{p.name}</div></td>
                                   <td style={{ textAlign: 'center' }}>{p.qty}</td>
-                                  <td style={{ fontWeight: 600 }}>{p.price.toLocaleString('en-IN')}</td>
+                                  <td style={{ fontWeight: 600 }}>₹{p.price.toLocaleString('en-IN')}</td>
                                   <td style={{ fontSize: 12, color: '#6b7280' }}>OFFLINE</td>
+                                  {/* 3: Create SR per product */}
+                                  <td>
+                                    {p.family !== 'Service' ? (
+                                      <button
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: 4, padding: '3px 7px', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                        onClick={e => { e.stopPropagation(); handleCreateSRForProduct(order, p); }}
+                                      >
+                                        <Wrench size={10} /> + Create SR
+                                      </button>
+                                    ) : <span style={{ fontSize: 11, color: '#9ca3af' }}>—</span>}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -328,6 +555,55 @@ export default function AddTicketFlow({ onBack }) {
                         </div>
                       )}
                     </div>
+
+                    {/* 2a/4: Service Orders section */}
+                    {orderSOs.length > 0 && (
+                      <div className="kap-accordion">
+                        <div className="kap-accordion-hdr" onClick={() => toggleAccordion(`so-${order.orderId}`)}>
+                          <span className="kap-accordion-title" style={{ color: '#7c3aed' }}>
+                            Service Orders <span style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 700, marginLeft: 4 }}>{orderSOs.length}</span>
+                          </span>
+                          {soSectionOpen ? <ChevronUp size={14} color="#9ca3af" /> : <ChevronDown size={14} color="#9ca3af" />}
+                        </div>
+                        {soSectionOpen && (
+                          <div className="kap-accordion-body" style={{ padding: 0 }}>
+                            <table className="kap-prod-table">
+                              <thead>
+                                <tr>
+                                  <th>SO Number</th>
+                                  <th>SAP Reference</th>
+                                  <th>Type</th>
+                                  <th>Product</th>
+                                  <th>Status</th>
+                                  <th>Engineer</th>
+                                  <th>Action</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {orderSOs.map(so => (
+                                  <tr key={so.id} style={{ background: foundSO?.id === so.id ? '#fdf4ff' : 'white' }}>
+                                    <td style={{ fontWeight: 700, color: '#7c3aed', fontSize: 12 }}>#{so.id}</td>
+                                    <td style={{ fontSize: 11.5, color: '#6b7280' }}>{so.sapServiceOrderNo}</td>
+                                    <td style={{ fontSize: 12 }}>{so.type}</td>
+                                    <td style={{ fontSize: 12, maxWidth: 160 }}>{so.product?.name?.slice(0, 30)}{so.product?.name?.length > 30 ? '…' : ''}</td>
+                                    <td><SOStatusBadge status={so.status} /></td>
+                                    <td style={{ fontSize: 12 }}>{so.engineer?.name}</td>
+                                    <td>
+                                      <button
+                                        style={{ background: '#7c3aed', color: 'white', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                        onClick={() => handleTagSO(so)}
+                                      >
+                                        Tag to Ticket
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Order Info accordion */}
                     <div className="kap-accordion">
@@ -449,13 +725,27 @@ export default function AddTicketFlow({ onBack }) {
       <div className="at-body">
         {/* Tagged order summary */}
         {taggedOrder && (
-          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 14px', marginBottom: 12, fontSize: 12.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <span style={{ color: '#6b7280' }}>Tagged Order: </span>
-              <strong style={{ color: '#2563eb' }}>{taggedOrder.orderId}</strong>
-              {taggedProduct && <span style={{ color: '#374151' }}> · {taggedProduct.name}</span>}
+          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '10px 14px', marginBottom: 12, fontSize: 12.5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ color: '#6b7280' }}>Tagged Order: </span>
+                <strong style={{ color: '#2563eb' }}>{taggedOrder.orderId}</strong>
+                {taggedProduct && <span style={{ color: '#374151' }}> · {taggedProduct.name}</span>}
+              </div>
+              <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }} onClick={() => setStep('orders')}><X size={14} /></button>
             </div>
-            <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }} onClick={() => setStep('orders')}><X size={14} /></button>
+            {/* 5: SO attached sub-row */}
+            {taggedSO && (
+              <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <Wrench size={12} color="#7c3aed" />
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: '#7c3aed' }}>Service Order Attached</span>
+                <SOStatusBadge status={taggedSO.status} />
+                <span style={{ fontSize: 11.5, color: '#6b7280' }}>SO# <strong>{taggedSO.id}</strong></span>
+                <span style={{ fontSize: 11.5, color: '#6b7280' }}>SAP: <strong>{taggedSO.sapServiceOrderNo}</strong></span>
+                <span style={{ fontSize: 11.5, color: '#6b7280' }}>Type: <strong>{taggedSO.type}</strong></span>
+                <span style={{ fontSize: 11.5, color: '#6b7280' }}>Engineer: <strong>{taggedSO.engineer?.name}</strong></span>
+              </div>
+            )}
           </div>
         )}
 
