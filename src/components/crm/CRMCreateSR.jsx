@@ -18,6 +18,8 @@ export default function CRMCreateSR({ order, product: prefillProduct, customer, 
   const [state, setState] = useState(customer?.addresses?.[0]?.state || '');
   const [serviceNote, setServiceNote] = useState('');
   const [eligibility, setEligibility] = useState(null);
+  const [payLink, setPayLink] = useState(null);
+  const [linkSent, setLinkSent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [soId] = useState(() => Math.floor(80000000 + Math.random() * 9999999).toString());
   const [ticketId] = useState(() => `TKT-${Math.floor(7800 + Math.random() * 999)}`);
@@ -37,6 +39,13 @@ export default function CRMCreateSR({ order, product: prefillProduct, customer, 
     const isPaid = serviceType === 'Repair' && warrantyStatus === 'Out of Warranty';
     const charges = isPaid ? 499 : 0;
     setEligibility({ type: isPaid ? 'Paid' : 'Free', charges, warranty: warrantyStatus });
+    setPayLink(null);
+    setLinkSent(false);
+  };
+
+  const handleGeneratePayLink = () => {
+    const ref = `SR-JMD-${Math.floor(10000 + Math.random() * 90000)}`;
+    setPayLink(`https://pay.jiomart.in/sr/${soId}?amt=${eligibility.charges}&ref=${ref}`);
   };
 
   const canSubmit = serviceType && appointDate && appointSlot && flat && pincode;
@@ -134,9 +143,38 @@ export default function CRMCreateSR({ order, product: prefillProduct, customer, 
                       {eligibility.type}{eligibility.charges > 0 ? ` · ₹${eligibility.charges}` : ''}
                     </span>
                   )}
+                  {eligibility?.type === 'Paid' && !payLink && (
+                    <button className="btn-sm" style={{ background: '#f97316', color: 'white', border: 'none', borderRadius: 4, padding: '4px 12px', cursor: 'pointer', fontSize: 11, fontWeight: 600, marginLeft: 4 }}
+                      onClick={handleGeneratePayLink}>
+                      Generate Payment Link
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
+
+            {payLink && (
+              <div style={{ marginTop: 14, background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Payment Link Generated · ₹{eligibility?.charges}</div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                  <input readOnly value={payLink} style={{ flex: 1, fontSize: 11, background: 'white', border: '1px solid #d1fae5', borderRadius: 4, padding: '5px 8px', color: '#374151', fontFamily: 'monospace' }} />
+                  <button style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: 4, padding: '5px 12px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                    onClick={() => navigator.clipboard?.writeText(payLink)}>Copy</button>
+                </div>
+                {!linkSent ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button style={{ background: '#25D366', color: 'white', border: 'none', borderRadius: 4, padding: '5px 14px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                      onClick={() => setLinkSent('whatsapp')}>Send via WhatsApp</button>
+                    <button style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: 4, padding: '5px 14px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                      onClick={() => setLinkSent('sms')}>Send via SMS</button>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12.5, color: '#16a34a', fontWeight: 600 }}>
+                    ✓ Payment link sent via {linkSent === 'whatsapp' ? 'WhatsApp' : 'SMS'} to {customer?.phone || prod?.brand}
+                  </div>
+                )}
+              </div>
+            )}
 
             {serviceNote !== undefined && (
               <div className="form-group" style={{ marginTop: 16, marginBottom: 0 }}>

@@ -8,6 +8,7 @@ import CRMOrderDetail from './components/crm/CRMOrderDetail'
 import CRMSODetail from './components/crm/CRMSODetail'
 import CRMCreateSR from './components/crm/CRMCreateSR'
 import CRMRaiseComplaint from './components/crm/CRMRaiseComplaint'
+import CRMComplaintDetail from './components/crm/CRMComplaintDetail'
 import { serviceOrders } from './data/dummyData'
 
 function App() {
@@ -66,8 +67,12 @@ function App() {
     crmPush({ step: 'soDetail', so: newSO, fromPage: 'srSuccess' })
   }
 
-  const handleComplaintSuccess = (compId) => {
-    crmBack() // go back to SO detail
+  const handleComplaintSuccess = (data) => {
+    if (data && typeof data === 'object' && data.compId) {
+      crmPush({ step: 'complaintDetail', ...data })
+    } else {
+      crmBack()
+    }
   }
 
   const renderCRM = () => {
@@ -127,6 +132,22 @@ function App() {
             so={crmState.so}
             onBack={crmBack}
             onSuccess={handleComplaintSuccess}
+          />
+        )
+
+      case 'complaintDetail':
+        return (
+          <CRMComplaintDetail
+            compId={crmState.compId}
+            ticketId={crmState.ticketId}
+            category={crmState.category}
+            subCategory={crmState.subCategory}
+            department={crmState.department}
+            transactionType={crmState.transactionType}
+            categoryDesc={crmState.categoryDesc}
+            remarks={crmState.remarks}
+            so={crmState.so}
+            onBack={crmBack}
           />
         )
 

@@ -1,11 +1,30 @@
 import { useState } from 'react';
-import { ArrowLeft, ChevronRight, ChevronDown, Plus } from 'lucide-react';
+import { ArrowLeft, ChevronRight, ChevronDown, Plus, MapPin, X, CheckCircle } from 'lucide-react';
 import StatusBadge from './StatusBadge';
-import { serviceOrders as allSOs } from '../../data/dummyData';
+import { serviceOrders as allSOs, indiaStates } from '../../data/dummyData';
+
+const pincodeCityMap = { '400061': ['Mumbai', 'Maharashtra'], '400051': ['Mumbai', 'Maharashtra'], '400050': ['Mumbai', 'Maharashtra'], '122002': ['Gurugram', 'Haryana'], '380015': ['Ahmedabad', 'Gujarat'], '400006': ['Navi Mumbai', 'Maharashtra'], '110001': ['New Delhi', 'Delhi'], '560001': ['Bengaluru', 'Karnataka'] };
 
 export default function CRMOrderList({ result, onSelectOrder, onSelectSO, onCreateSR, onCreateTicket, onBack }) {
   const [activeTab, setActiveTab] = useState('all');
   const [expanded, setExpanded] = useState({});
+  const [showAddAddress, setShowAddAddress] = useState(false);
+  const [addrSaved, setAddrSaved] = useState(false);
+  const [addrForm, setAddrForm] = useState({ flat: '', building: '', street: '', area: '', pincode: '', city: '', state: '' });
+  const [extraAddresses, setExtraAddresses] = useState([]);
+
+  const setAF = (k, v) => setAddrForm(p => ({ ...p, [k]: v }));
+  const handleAddrPincode = (val) => {
+    setAF('pincode', val);
+    if (pincodeCityMap[val]) { setAF('city', pincodeCityMap[val][0]); setAF('state', pincodeCityMap[val][1]); }
+  };
+  const canSaveAddr = addrForm.flat && addrForm.pincode;
+  const handleSaveAddress = () => {
+    setExtraAddresses(p => [...p, { ...addrForm }]);
+    setAddrSaved(true);
+    setAddrForm({ flat: '', building: '', street: '', area: '', pincode: '', city: '', state: '' });
+    setTimeout(() => { setAddrSaved(false); setShowAddAddress(false); }, 2000);
+  };
 
   const { customer, orders = [], relatedSOs = [] } = result;
 
@@ -53,6 +72,71 @@ export default function CRMOrderList({ result, onSelectOrder, onSelectSO, onCrea
                 <Plus size={12} style={{ display: 'inline', marginRight: 4 }} />Create Ticket
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Address management */}
+        {customer && (
+          <div className="card" style={{ padding: '12px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: (customer.addresses?.length > 0 || extraAddresses.length > 0) ? 8 : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <MapPin size={13} color="#6b7280" />
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: '#374151' }}>
+                  Addresses ({(customer.addresses?.length || 0) + extraAddresses.length})
+                </span>
+              </div>
+              <button style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 11.5, color: '#374151', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}
+                onClick={() => { setShowAddAddress(p => !p); setAddrSaved(false); }}>
+                {showAddAddress ? <><X size={11} /> Cancel</> : <><Plus size={11} /> Add Address</>}
+              </button>
+            </div>
+
+            {/* Existing addresses */}
+            {[...(customer.addresses || []), ...extraAddresses].map((addr, i) => (
+              <div key={i} style={{ fontSize: 12, color: '#6b7280', padding: '4px 0', borderTop: i === 0 ? 'none' : '1px solid #f3f4f6' }}>
+                {[addr.flat, addr.building, addr.street, addr.area, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ')}
+                {i >= (customer.addresses?.length || 0) && <span style={{ marginLeft: 8, fontSize: 10, background: '#d1fae5', color: '#065f46', fontWeight: 700, padding: '2px 6px', borderRadius: 10 }}>New</span>}
+              </div>
+            ))}
+
+            {/* Add address form */}
+            {showAddAddress && !addrSaved && (
+              <div style={{ marginTop: 12, padding: '14px', background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Add New Service Address</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {[['flat','Flat / House No. *','Flat 402'],['building','Building / Society','Sunrise Apts'],['street','Street','Yari Road'],['area','Area / Landmark','Near D-Mart']].map(([k, label, ph]) => (
+                    <div key={k} className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: 11 }}>{label}</label>
+                      <input className="form-input" style={{ fontSize: 12 }} placeholder={ph} value={addrForm[k]} onChange={e => setAF(k, e.target.value)} />
+                    </div>
+                  ))}
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: 11 }}>Pincode *</label>
+                    <input className="form-input" style={{ fontSize: 12 }} placeholder="400061" maxLength={6} value={addrForm.pincode} onChange={e => handleAddrPincode(e.target.value)} />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: 11 }}>City</label>
+                    <input className="form-input" style={{ fontSize: 12 }} placeholder="Mumbai" value={addrForm.city} onChange={e => setAF('city', e.target.value)} />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0, gridColumn: '1 / -1' }}>
+                    <label className="form-label" style={{ fontSize: 11 }}>State</label>
+                    <select className="form-select" style={{ fontSize: 12 }} value={addrForm.state} onChange={e => setAF('state', e.target.value)}>
+                      <option value="">Select state</option>
+                      {(indiaStates || ['Maharashtra','Delhi','Karnataka','Haryana','Gujarat','Tamil Nadu']).map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <button className="btn-primary" style={{ borderRadius: 6, fontSize: 12, opacity: canSaveAddr ? 1 : 0.5 }} disabled={!canSaveAddr} onClick={handleSaveAddress}>Save Address</button>
+                  <button className="btn-secondary" style={{ borderRadius: 6, fontSize: 12 }} onClick={() => setShowAddAddress(false)}>Cancel</button>
+                </div>
+              </div>
+            )}
+            {addrSaved && (
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6, color: '#16a34a', fontSize: 12.5, fontWeight: 600 }}>
+                <CheckCircle size={14} /> Address saved successfully
+              </div>
+            )}
           </div>
         )}
 

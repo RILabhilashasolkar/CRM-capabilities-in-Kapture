@@ -54,7 +54,7 @@ export default function CRMRaiseComplaint({ so, onBack, onSuccess }) {
           </div>
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-            <button className="btn-primary" style={{ borderRadius: 6, background: '#dc2626' }} onClick={() => onSuccess(compId)}>View Complaint</button>
+            <button className="btn-primary" style={{ borderRadius: 6, background: '#dc2626' }} onClick={() => onSuccess({ compId, ticketId, category, subCategory, department, transactionType, categoryDesc, remarks, so })}>View Complaint</button>
             <button className="btn-secondary" style={{ borderRadius: 6 }} onClick={onBack}>Back to Service Order</button>
           </div>
         </div>

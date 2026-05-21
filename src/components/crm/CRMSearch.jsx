@@ -30,6 +30,22 @@ export default function CRMSearch({ onResult }) {
       if (!foundOrder) { setError('Order not found. Try: ORD-20240402-001 or B63515626500726'); return; }
       const sos = serviceOrders.filter(s => s.orderId === foundOrder.orderId);
       onResult({ mode: 'orderId', query: q, customer: foundCustomer, orders: [foundOrder], relatedSOs: sos, phone: foundPhone });
+    } else if (mode === 'serialNo') {
+      let foundPhone = null, foundProduct = null;
+      Object.entries(customerOrders).forEach(([phone, ords]) => {
+        ords.forEach(o => {
+          const p = o.products?.find(p => p.serialNo?.toLowerCase() === q.toLowerCase());
+          if (p && !foundPhone) { foundPhone = phone; foundProduct = p; }
+        });
+      });
+      if (!foundPhone) {
+        setError('No product found for this serial number. Try: SN-BS-2026-0044 or SN-LG-2025-0187');
+        return;
+      }
+      const customer = customers[foundPhone];
+      const orders = customerOrders[foundPhone] || [];
+      const sos = serviceOrders.filter(s => s.product?.serial?.toLowerCase() === q.toLowerCase());
+      onResult({ mode: 'serialNo', query: q, customer, orders, relatedSOs: sos, highlightSerial: q });
     } else {
       const so = serviceOrders.find(s => s.id === q || s.sapServiceOrderNo === q);
       if (!so) { setError('Service order not found. Try: 86379827 or 86379901'); return; }
@@ -37,20 +53,20 @@ export default function CRMSearch({ onResult }) {
     }
   };
 
-  const placeholders = { mobile: '9916265181', orderId: 'ORD-20240402-001', soNumber: '86379827' };
-  const labels = { mobile: 'Mobile Number', orderId: 'Order ID', soNumber: 'Service Order Number' };
+  const placeholders = { mobile: '9916265181', orderId: 'ORD-20240402-001', soNumber: '86379827', serialNo: 'SN-BS-2026-0044' };
+  const labels = { mobile: 'Mobile Number', orderId: 'Order ID', soNumber: 'Service Order Number', serialNo: 'Serial Number / Object ID' };
 
   return (
     <div className="crm-page" style={{ justifyContent: 'flex-start' }}>
-      <div style={{ maxWidth: 560, margin: '48px auto', padding: '0 20px', width: '100%' }}>
+      <div style={{ maxWidth: 580, margin: '48px auto', padding: '0 20px', width: '100%' }}>
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>Search Customer / Order</div>
-          <div style={{ fontSize: 13, color: '#6b7280' }}>Look up customer by mobile number, order ID, or service order number</div>
+          <div style={{ fontSize: 13, color: '#6b7280' }}>Look up customer by mobile number, order ID, serial number, or service order number</div>
         </div>
 
         <div className="card" style={{ padding: '24px' }}>
           <div className="search-mode-tabs">
-            {[['mobile','Mobile Number'],['orderId','Order ID'],['soNumber','Service Order No.']].map(([val, label]) => (
+            {[['mobile','Mobile Number'],['orderId','Order ID'],['serialNo','Serial No.'],['soNumber','Service Order No.']].map(([val, label]) => (
               <button key={val} className={`search-mode-tab ${mode === val ? 'active' : ''}`}
                 onClick={() => { setMode(val); setQuery(''); setError(''); }}>{label}</button>
             ))}
@@ -76,6 +92,11 @@ export default function CRMSearch({ onResult }) {
             </button>
           </div>
           {error && <div style={{ color: '#dc2626', fontSize: 12.5, marginTop: 8 }}>{error}</div>}
+          {mode === 'serialNo' && (
+            <div style={{ marginTop: 8, fontSize: 12, color: '#6b7280', background: '#f9fafb', borderRadius: 6, padding: '6px 10px' }}>
+              Finds the customer and all orders associated with this product serial number
+            </div>
+          )}
         </div>
 
         <div style={{ marginTop: 24 }}>
@@ -84,6 +105,8 @@ export default function CRMSearch({ onResult }) {
             {[
               { label: 'Gajendiran Perumal', sub: '9916265181', val: '9916265181', m: 'mobile' },
               { label: 'Abhilash Asolkar', sub: '9689808472', val: '9689808472', m: 'mobile' },
+              { label: 'Bluestar AC Serial', sub: 'SN-BS-2026-0044', val: 'SN-BS-2026-0044', m: 'serialNo' },
+              { label: 'LG AC Serial', sub: 'SN-LG-2025-0187', val: 'SN-LG-2025-0187', m: 'serialNo' },
               { label: 'SO #86379827', sub: 'In Progress', val: '86379827', m: 'soNumber' },
               { label: 'SO #86379901', sub: 'Assigned', val: '86379901', m: 'soNumber' },
             ].map(item => (
