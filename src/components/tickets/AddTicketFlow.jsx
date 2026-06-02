@@ -96,8 +96,12 @@ export default function AddTicketFlow({ onBack }) {
   const handleSearch = () => {
     let cust = null, ords = [], phone = '';
     setFoundSO(null);
+    setActiveOrderTab('all');
+    setSelectedSOInTab(null);
+    setSelectedIObject(null);
+    setSelectedComplaint(null);
 
-    // SO / SR / Serial search via tab bar
+    // OR SEARCH BY tab bar (SO / SR / Serial / Complaint)
     if (soQuery.trim()) {
       const q = soQuery.trim();
       let so = null;
@@ -107,46 +111,66 @@ export default function AddTicketFlow({ onBack }) {
           s.id === q || s.sapServiceOrderNo.toLowerCase() === q.toLowerCase()
         );
         if (!so) { setSearchError(`No service order found for "${q}". Try: 86379827`); return; }
+        phone = so.customer.phone;
+        cust = customers[phone] || { name: so.customer.name, code: so.customer.code, email: '—', phone: so.customer.phone };
+        ords = customerOrders[phone] || [];
+        setFoundCustomer(cust); setOrders(ords); setFoundSO(so);
+        setExpandedOrderId(so.orderId);
+        setActiveOrderTab('so'); setSelectedSOInTab(so);
+        setSearchError(''); setStep('orders');
+        return;
+
       } else if (soSearchMode === 'srNumber') {
         so = serviceOrders.find(s =>
           s.serviceRefId && s.serviceRefId.toLowerCase() === q.toLowerCase()
         );
         if (!so) { setSearchError(`No service request found for "${q}". Try: SR-JMD-2026-0044`); return; }
+        phone = so.customer.phone;
+        cust = customers[phone] || { name: so.customer.name, code: so.customer.code, email: '—', phone: so.customer.phone };
+        ords = customerOrders[phone] || [];
+        setFoundCustomer(cust); setOrders(ords); setFoundSO(so);
+        setExpandedOrderId(so.orderId);
+        setActiveOrderTab('so'); setSelectedSOInTab(so);
+        setSearchError(''); setStep('orders');
+        return;
+
       } else if (soSearchMode === 'serialNo') {
-        // find customer who owns a product with this serial number
-        let foundPhone = null;
-        let foundOrder = null;
+        let foundPhone = null, foundOrder = null, foundProduct = null;
         Object.entries(customerOrders).forEach(([p, oList]) => {
           oList.forEach(o => {
-            if (o.products.some(pr => pr.serialNo === q)) { foundPhone = p; foundOrder = o; }
+            const pr = o.products.find(pr => pr.serialNo === q);
+            if (pr) { foundPhone = p; foundOrder = o; foundProduct = pr; }
           });
         });
         if (!foundPhone) { setSearchError(`No product found with serial number "${q}". Try: SN-VT-2024-0019`); return; }
         cust = customers[foundPhone] || null;
         ords = customerOrders[foundPhone] || [];
-        // also surface any SO linked to that order
         so = serviceOrders.find(s => s.orderId === foundOrder?.orderId) || null;
-        setFoundCustomer(cust);
-        setOrders(ords);
+        const iObj = foundProduct ? { ...foundProduct, order: foundOrder } : null;
+        setFoundCustomer(cust); setOrders(ords);
         if (so) { setFoundSO(so); setExpandedOrderId(so.orderId); }
-        setSearchError('');
-        setStep('orders');
+        setActiveOrderTab('iobjects');
+        if (iObj) setSelectedIObject(iObj);
+        setSearchError(''); setStep('orders');
+        return;
+
+      } else if (soSearchMode === 'complaint') {
+        const comp = complaints.find(c => c.id.toLowerCase() === q.toLowerCase());
+        if (!comp) { setSearchError(`No complaint found for "${q}". Try: COMP-2026-8834512901`); return; }
+        so = serviceOrders.find(s => s.id === comp.serviceOrderId);
+        if (!so) { setSearchError(`Complaint found but no linked service order for "${q}"`); return; }
+        phone = so.customer.phone;
+        cust = customers[phone] || { name: so.customer.name, code: so.customer.code, email: '—', phone: so.customer.phone };
+        ords = customerOrders[phone] || [];
+        setFoundCustomer(cust); setOrders(ords); setFoundSO(so);
+        setExpandedOrderId(so.orderId);
+        setActiveOrderTab('complaints'); setSelectedComplaint(comp);
+        setSearchError(''); setStep('orders');
         return;
       }
-
-      phone = so.customer.phone;
-      cust = customers[phone] || { name: so.customer.name, code: so.customer.code, email: '—', phone: so.customer.phone };
-      ords = customerOrders[phone] || [];
-      setFoundCustomer(cust);
-      setOrders(ords);
-      setFoundSO(so);
-      setExpandedOrderId(so.orderId);
-      setSearchError('');
-      setStep('orders');
-      return;
     }
 
-    // 2a: Mobile number search (irrespective of multiple customer IDs)
+    // Form-based search
     const q = form.phone || form.customer;
     if (q && customers[q]) { cust = customers[q]; ords = customerOrders[q] || []; phone = q; }
     else if (form.customerCode) {
@@ -154,11 +178,12 @@ export default function AddTicketFlow({ onBack }) {
     } else if (form.name) {
       Object.entries(customers).forEach(([p, c]) => { if (c.name.toLowerCase().includes(form.name.toLowerCase())) { cust = c; ords = customerOrders[p] || []; phone = p; } });
     } else if (form.orderId) {
-      // 2b: Order ID search — customer ID is the key parameter
+      let matchedOrder = null;
       Object.entries(customerOrders).forEach(([p, oList]) => {
         const match = oList.find(o => o.orderId.toLowerCase() === form.orderId.toLowerCase());
-        if (match) { cust = customers[p]; ords = oList; phone = p; }
+        if (match) { cust = customers[p]; ords = oList; phone = p; matchedOrder = match; }
       });
+      if (matchedOrder) { setExpandedOrderId(matchedOrder.orderId); setActiveOrderTab('orders'); }
     }
 
     if (!cust) { setSearchError('No customer found. Try phone: 9916265181 or SO No: 86379827'); return; }
@@ -352,6 +377,7 @@ export default function AddTicketFlow({ onBack }) {
                       ['soNumber', 'Service Order No.'],
                       ['srNumber', 'SR Number'],
                       ['serialNo', 'Serial Number'],
+                      ['complaint', 'CRM ZRCO Complaint'],
                     ].map(([val, label]) => (
                       <button key={val}
                         className={`search-mode-tab ${soSearchMode === val ? 'active' : ''}`}
@@ -366,7 +392,8 @@ export default function AddTicketFlow({ onBack }) {
                     placeholder={
                       soSearchMode === 'soNumber' ? 'e.g. 86379827' :
                       soSearchMode === 'srNumber' ? 'e.g. SR-JMD-2026-0044' :
-                      'e.g. SN-VT-2024-0019'
+                      soSearchMode === 'serialNo' ? 'e.g. SN-VT-2024-0019' :
+                      'e.g. COMP-2026-8834512901'
                     }
                     value={soQuery}
                     onChange={e => setSoQuery(e.target.value)}
@@ -450,11 +477,19 @@ export default function AddTicketFlow({ onBack }) {
                 },
                 {
                   label: 'Order ID Search',
-                  desc: 'Find customer by JioMart order ID',
+                  desc: 'Find customer by JioMart order ID, opens order directly',
                   tag: 'Order ID',
                   tagColor: '#d97706',
                   value: 'B63515626500726',
-                  action: () => { setF('orderId', 'B63515626500726'); setF('phone', ''); setSoQuery(''); },
+                  action: () => { setF('orderId', 'B63515626500726'); setF('phone', ''); setSoQuery(''); setSoSearchMode('soNumber'); },
+                },
+                {
+                  label: 'ZRCO Complaint Search',
+                  desc: 'Look up by complaint ID, opens complaint detail directly',
+                  tag: 'Complaint',
+                  tagColor: '#dc2626',
+                  value: 'COMP-2026-8834512901',
+                  action: () => { setSoSearchMode('complaint'); setSoQuery('COMP-2026-8834512901'); setF('phone', ''); setF('orderId', ''); },
                 },
               ].map(({ label, desc, tag, tagColor, value, action }) => (
                 <button key={value}
