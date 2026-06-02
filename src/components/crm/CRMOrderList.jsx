@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { ArrowLeft, ChevronRight, ChevronDown, Plus, MapPin, X, CheckCircle } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import { serviceOrders as allSOs, indiaStates } from '../../data/dummyData';
@@ -168,8 +168,8 @@ export default function CRMOrderList({ result, onSelectOrder, onSelectSO, onCrea
             <tbody>
               {/* Product order rows */}
               {(activeTab === 'all' || activeTab === 'orders') && enrichedOrders.map(order => (
-                <>
-                  <tr key={order.orderId} className="order-row" onClick={() => { onSelectOrder(order, customer); toggle(order.orderId); }}>
+                <Fragment key={order.orderId}>
+                  <tr className="order-row" onClick={() => { onSelectOrder(order, customer); toggle(order.orderId); }}>
                     <td style={{ color: '#9ca3af', paddingRight: 0 }}>
                       {order.linkedSOs.length > 0
                         ? (expanded[order.orderId] ? <ChevronDown size={14} /> : <ChevronRight size={14} />)
@@ -213,7 +213,7 @@ export default function CRMOrderList({ result, onSelectOrder, onSelectSO, onCrea
                       </td>
                     </tr>
                   ))}
-                </>
+                </Fragment>
               ))}
 
               {/* Standalone SOs (mobile search, not tied to listed orders) */}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ChevronUp, ChevronDown, Search, User, Truck, Calendar, ShoppingBag, Upload, Folder, X, Wrench, AlertCircle } from 'lucide-react';
-import { customers, customerOrders, serviceOrders } from '../../data/dummyData';
+import { ChevronUp, ChevronDown, Search, User, Truck, Calendar, ShoppingBag, Upload, Folder, X, Wrench, AlertCircle, Package, MapPin, Shield, ArrowLeft, Clock } from 'lucide-react';
+import { customers, customerOrders, serviceOrders, complaints } from '../../data/dummyData';
 import CRMCreateSR from '../crm/CRMCreateSR';
 
 // Folder tree matching real Kapture
@@ -51,9 +51,13 @@ export default function AddTicketFlow({ onBack }) {
   const [step, setStep] = useState('search'); // 'search' | 'orders' | 'create' | 'createSR'
 
   // Search form state
-  const [form, setForm] = useState({ customer: '', name: '', phone: '', email: '', customerCode: '', orderId: '', erpOrderId: '', company: '', soNumber: '' });
+  const [form, setForm] = useState({ customer: '', name: '', phone: '', email: '', customerCode: '', orderId: '', erpOrderId: '', company: '' });
   const [searchSectionOpen, setSearchSectionOpen] = useState(true);
   const [searchError, setSearchError] = useState('');
+
+  // SO search tab state
+  const [soSearchMode, setSoSearchMode] = useState('soNumber');
+  const [soQuery, setSoQuery] = useState('');
 
   // Customer + orders state
   const [foundCustomer, setFoundCustomer] = useState(null);
@@ -65,6 +69,10 @@ export default function AddTicketFlow({ onBack }) {
   const [taggedProduct, setTaggedProduct] = useState(null);
   const [selectedProductSku, setSelectedProductSku] = useState(null);
   const [orderFilterId, setOrderFilterId] = useState('');
+  const [activeOrderTab, setActiveOrderTab] = useState('all');
+  const [selectedSOInTab, setSelectedSOInTab] = useState(null);
+  const [selectedIObject, setSelectedIObject] = useState(null);
+  const [selectedComplaint, setSelectedComplaint] = useState(null);
 
   // SO flow state (new)
   const [foundSO, setFoundSO] = useState(null);
@@ -89,14 +97,43 @@ export default function AddTicketFlow({ onBack }) {
     let cust = null, ords = [], phone = '';
     setFoundSO(null);
 
-    // 2c: Search by service order number
-    if (form.soNumber.trim()) {
-      const soNum = form.soNumber.trim();
-      const so = serviceOrders.find(s =>
-        s.id === soNum || s.serviceRefId === soNum ||
-        s.sapServiceOrderNo.toLowerCase() === soNum.toLowerCase()
-      );
-      if (!so) { setSearchError(`No service order found for "${soNum}". Try: 86379827 or SR-JMD-2026-0044`); return; }
+    // SO / SR / Serial search via tab bar
+    if (soQuery.trim()) {
+      const q = soQuery.trim();
+      let so = null;
+
+      if (soSearchMode === 'soNumber') {
+        so = serviceOrders.find(s =>
+          s.id === q || s.sapServiceOrderNo.toLowerCase() === q.toLowerCase()
+        );
+        if (!so) { setSearchError(`No service order found for "${q}". Try: 86379827`); return; }
+      } else if (soSearchMode === 'srNumber') {
+        so = serviceOrders.find(s =>
+          s.serviceRefId && s.serviceRefId.toLowerCase() === q.toLowerCase()
+        );
+        if (!so) { setSearchError(`No service request found for "${q}". Try: SR-JMD-2026-0044`); return; }
+      } else if (soSearchMode === 'serialNo') {
+        // find customer who owns a product with this serial number
+        let foundPhone = null;
+        let foundOrder = null;
+        Object.entries(customerOrders).forEach(([p, oList]) => {
+          oList.forEach(o => {
+            if (o.products.some(pr => pr.serialNo === q)) { foundPhone = p; foundOrder = o; }
+          });
+        });
+        if (!foundPhone) { setSearchError(`No product found with serial number "${q}". Try: SN-VT-2024-0019`); return; }
+        cust = customers[foundPhone] || null;
+        ords = customerOrders[foundPhone] || [];
+        // also surface any SO linked to that order
+        so = serviceOrders.find(s => s.orderId === foundOrder?.orderId) || null;
+        setFoundCustomer(cust);
+        setOrders(ords);
+        if (so) { setFoundSO(so); setExpandedOrderId(so.orderId); }
+        setSearchError('');
+        setStep('orders');
+        return;
+      }
+
       phone = so.customer.phone;
       cust = customers[phone] || { name: so.customer.name, code: so.customer.code, email: '—', phone: so.customer.phone };
       ords = customerOrders[phone] || [];
@@ -190,6 +227,18 @@ export default function AddTicketFlow({ onBack }) {
   const customerPhone = foundCustomer?.phone;
   const allSOs = [...serviceOrders, ...newlyCreatedSOs];
   const customerSOs = allSOs.filter(so => so.customer?.phone === customerPhone);
+
+  // iObjects = installed base items (one per physical product with a serial number)
+  const iObjects = filteredOrders.flatMap(order =>
+    order.products
+      .filter(p => p.family !== 'Service' && p.serialNo && p.serialNo !== 'N/A')
+      .map(p => ({ ...p, order }))
+  );
+
+  // CRM ZRCO Complaints linked to this customer's service orders
+  const customerComplaints = complaints.filter(c =>
+    customerSOs.some(so => so.id === c.serviceOrderId)
+  );
 
   // ── Success ──────────────────────────────────────────────────────────────
   if (submitted) {
@@ -291,20 +340,36 @@ export default function AddTicketFlow({ onBack }) {
                   ))}
                 </div>
 
-                {/* 2c: Service Order search */}
+                {/* SO / SR / Serial search */}
                 <div style={{ margin: '12px 0 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>OR SEARCH BY SERVICE ORDER</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>OR SEARCH BY</span>
                   <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
                 </div>
-                <div style={{ border: '1.5px solid #a78bfa', borderRadius: 6, padding: '10px 12px', background: '#faf5ff', marginBottom: 12 }}>
-                  <label className="kap-label" style={{ color: '#7c3aed', fontWeight: 700 }}>Service Order No. / SR Number</label>
+                <div style={{ border: '1.5px solid #a78bfa', borderRadius: 8, padding: '10px 12px', background: '#faf5ff', marginBottom: 12 }}>
+                  <div className="search-mode-tabs" style={{ marginBottom: 10 }}>
+                    {[
+                      ['soNumber', 'Service Order No.'],
+                      ['srNumber', 'SR Number'],
+                      ['serialNo', 'Serial Number'],
+                    ].map(([val, label]) => (
+                      <button key={val}
+                        className={`search-mode-tab ${soSearchMode === val ? 'active' : ''}`}
+                        onClick={() => { setSoSearchMode(val); setSoQuery(''); setSearchError(''); }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   <input
                     className="kap-input"
                     style={{ borderColor: '#a78bfa', background: 'white' }}
-                    placeholder="e.g. 86379827 or SR-JMD-2026-0044"
-                    value={form.soNumber}
-                    onChange={e => setF('soNumber', e.target.value)}
+                    placeholder={
+                      soSearchMode === 'soNumber' ? 'e.g. 86379827' :
+                      soSearchMode === 'srNumber' ? 'e.g. SR-JMD-2026-0044' :
+                      'e.g. SN-VT-2024-0019'
+                    }
+                    value={soQuery}
+                    onChange={e => setSoQuery(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleSearch()}
                   />
                 </div>
@@ -332,6 +397,80 @@ export default function AddTicketFlow({ onBack }) {
                 <X size={13} color="#9ca3af" style={{ marginLeft: 'auto', cursor: 'pointer' }} />
               </div>
               <div style={{ fontSize: 12, color: '#6b7280', textAlign: 'center', padding: '8px 0' }}>Search for a customer first to create ticket</div>
+            </div>
+          </div>
+
+          {/* Quick Access — prototype demo shortcuts */}
+          <div style={{ margin: '0 0 16px 0', border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ background: '#f8faff', borderBottom: '1px solid #e5e7eb', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em' }}>⚡ Quick Access</span>
+              <span style={{ fontSize: 11, color: '#9ca3af' }}>Click any scenario to load demo data</span>
+            </div>
+            <div style={{ padding: '12px 14px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              {[
+                {
+                  label: 'Full Customer Journey',
+                  desc: 'Orders + iObjects + Service Orders + Complaint',
+                  tag: 'Phone',
+                  tagColor: '#2563eb',
+                  value: '9689808472',
+                  action: () => { setF('phone', '9689808472'); setSoQuery(''); setSoSearchMode('soNumber'); },
+                },
+                {
+                  label: 'Product Orders Only',
+                  desc: 'Customer with multiple product orders, no SO',
+                  tag: 'Phone',
+                  tagColor: '#2563eb',
+                  value: '9916265181',
+                  action: () => { setF('phone', '9916265181'); setSoQuery(''); setSoSearchMode('soNumber'); },
+                },
+                {
+                  label: 'Service Order Search',
+                  desc: 'Look up by SO number, see SO detail flow',
+                  tag: 'SO No.',
+                  tagColor: '#7c3aed',
+                  value: '86379827',
+                  action: () => { setSoSearchMode('soNumber'); setSoQuery('86379827'); setF('phone', ''); },
+                },
+                {
+                  label: 'SR Reference Search',
+                  desc: 'Look up via service request reference ID',
+                  tag: 'SR Ref',
+                  tagColor: '#7c3aed',
+                  value: 'SR-JMD-2026-0044',
+                  action: () => { setSoSearchMode('srNumber'); setSoQuery('SR-JMD-2026-0044'); setF('phone', ''); },
+                },
+                {
+                  label: 'Serial Number Search',
+                  desc: 'Find customer & product via device serial no.',
+                  tag: 'Serial',
+                  tagColor: '#059669',
+                  value: 'SN-VT-2024-0019',
+                  action: () => { setSoSearchMode('serialNo'); setSoQuery('SN-VT-2024-0019'); setF('phone', ''); },
+                },
+                {
+                  label: 'Order ID Search',
+                  desc: 'Find customer by JioMart order ID',
+                  tag: 'Order ID',
+                  tagColor: '#d97706',
+                  value: 'B63515626500726',
+                  action: () => { setF('orderId', 'B63515626500726'); setF('phone', ''); setSoQuery(''); },
+                },
+              ].map(({ label, desc, tag, tagColor, value, action }) => (
+                <button key={value}
+                  onClick={() => { action(); }}
+                  style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px', textAlign: 'left', cursor: 'pointer', transition: 'border-color 0.15s', display: 'flex', flexDirection: 'column', gap: 4 }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = tagColor}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = '#e5e7eb'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#1a1a2e' }}>{label}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: tagColor + '18', color: tagColor, whiteSpace: 'nowrap' }}>{tag}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>{desc}</div>
+                  <div style={{ fontSize: 11, color: tagColor, fontWeight: 600, marginTop: 2, fontFamily: 'monospace' }}>{value}</div>
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -455,12 +594,554 @@ export default function AddTicketFlow({ onBack }) {
             </div>
           </div>
 
-          {/* Order cards */}
-          {filteredOrders.length === 0 && (
+          {/* Tab bar */}
+          <div className="tab-bar" style={{ background: 'white', borderRadius: '8px 8px 0 0', marginBottom: 0 }}>
+            {[
+              ['all',        `All (${filteredOrders.length + customerSOs.length})`],
+              ['orders',     `Product Orders (${filteredOrders.length})`],
+              ['iobjects',   `iObjects (${iObjects.length})`],
+              ['so',         `Service Orders (${customerSOs.length})`],
+              ['complaints', `CRM ZRCO Complaints (${customerComplaints.length})`],
+            ].map(([key, label]) => (
+              <div key={key} className={`tab ${activeOrderTab === key ? 'active' : ''}`}
+                style={{ fontSize: 12, whiteSpace: 'nowrap' }}
+                onClick={() => setActiveOrderTab(key)}>
+                {label}
+              </div>
+            ))}
+          </div>
+
+          {/* iObjects tab — installed base items */}
+          {activeOrderTab === 'iobjects' && (
+            <div style={{ background: 'white', borderRadius: '0 0 8px 8px', border: '1px solid #e5e7eb', borderTop: 'none', marginBottom: 12, overflow: 'hidden' }}>
+              {iObjects.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#9ca3af', padding: 32, fontSize: 13 }}>No iObjects found for this customer</div>
+              ) : !selectedIObject ? (
+                /* iObjects list table */
+                <table className="kap-prod-table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th>Object ID</th>
+                      <th>Serial No.</th>
+                      <th>Article Description</th>
+                      <th>Brand</th>
+                      <th>Warranty</th>
+                      <th>Date of Purchase</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {iObjects.map(iobj => (
+                      <tr key={iobj.serialNo} className="order-row" style={{ cursor: 'pointer' }}
+                        onClick={() => setSelectedIObject(iobj)}>
+                        <td style={{ fontWeight: 700, color: '#2563eb', fontSize: 12 }}>{iobj.objectId || iobj.serialNo}</td>
+                        <td style={{ fontSize: 12, color: '#6b7280' }}>{iobj.serialNo}</td>
+                        <td style={{ fontSize: 12, maxWidth: 160 }}>{iobj.name?.slice(0, 28)}{iobj.name?.length > 28 ? '…' : ''}</td>
+                        <td style={{ fontSize: 12 }}>{iobj.brand}</td>
+                        <td>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                            background: iobj.warranty === 'Out of Warranty' ? '#fee2e2' : '#d1fae5',
+                            color: iobj.warranty === 'Out of Warranty' ? '#dc2626' : '#065f46' }}>
+                            {iobj.warranty}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: 12, color: '#6b7280' }}>{iobj.order.orderDate}</td>
+                        <td>
+                          <button
+                            style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            onClick={e => { e.stopPropagation(); setSelectedIObject(iobj); }}
+                          >View</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                /* iObject detail view */
+                <div style={{ padding: '14px 16px' }}>
+                  {/* Topbar */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+                    <button onClick={() => setSelectedIObject(null)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, padding: 0 }}>
+                      <ArrowLeft size={14} /> Back
+                    </button>
+                    <span style={{ color: '#d1d5db' }}>›</span>
+                    <Package size={14} color="#2563eb" />
+                    <span style={{ fontWeight: 700, fontSize: 13.5, color: '#1a1a2e' }}>Object ID: {selectedIObject.objectId || selectedIObject.serialNo}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 10,
+                      background: selectedIObject.warranty === 'Out of Warranty' ? '#fee2e2' : '#d1fae5',
+                      color: selectedIObject.warranty === 'Out of Warranty' ? '#dc2626' : '#065f46' }}>
+                      {selectedIObject.warranty}
+                    </span>
+                    <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                      <button
+                        style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                        onClick={() => handleCreateSRForProduct(selectedIObject.order, selectedIObject)}
+                      >
+                        <Wrench size={13} /> Create Service Request
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Product Details */}
+                  <div style={{ background: '#f8faff', border: '1px solid #e0e7ff', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                      <Shield size={12} color="#2563eb" />
+                      <span style={{ fontSize: 11.5, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Product Details</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px 16px' }}>
+                      {[
+                        ['Article Description', selectedIObject.name],
+                        ['Serial No. (SERIALNO)', selectedIObject.serialNo],
+                        ['Brand', selectedIObject.brand],
+                        ['SKU / Product ID', selectedIObject.sku],
+                        ['Date of Purchase (DOP)', selectedIObject.order.orderDate],
+                        ['Warranty Start', selectedIObject.order.orderDate],
+                        ['Warranty End', selectedIObject.warrantyExpiry],
+                        ['Installation Type', selectedIObject.installationType],
+                        ['Upcoming PMS', selectedIObject.upcomingPMS || '—'],
+                      ].map(([label, value]) => (
+                        <div key={label}>
+                          <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{label}</div>
+                          <div style={{ fontSize: 12.5, color: '#1a1a2e', fontWeight: 500 }}>{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Customer Details & Address */}
+                  {foundCustomer && (
+                    <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                        <MapPin size={12} color="#6b7280" />
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Customer Details & Address</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px 16px' }}>
+                        {[
+                          ['Sold-to Party', foundCustomer.code],
+                          ['First Name', foundCustomer.firstName || foundCustomer.name.split(' ')[0]],
+                          ['Last Name', foundCustomer.lastName || foundCustomer.name.split(' ').slice(1).join(' ') || '—'],
+                          ['Mobile No.', foundCustomer.phone],
+                          ['Email', foundCustomer.email],
+                          ['Flat No.', foundCustomer.addresses?.[0]?.flat || '—'],
+                          ['House / Building', foundCustomer.addresses?.[0]?.building || '—'],
+                          ['Street', foundCustomer.addresses?.[0]?.street || '—'],
+                          ['Area / Landmark', foundCustomer.addresses?.[0]?.area || '—'],
+                          ['City', foundCustomer.addresses?.[0]?.city || '—'],
+                          ['State', foundCustomer.addresses?.[0]?.state || '—'],
+                          ['Postal Code', foundCustomer.addresses?.[0]?.pincode || '—'],
+                        ].map(([label, value]) => (
+                          <div key={label}>
+                            <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{label}</div>
+                            <div style={{ fontSize: 12, color: '#374151' }}>{value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* CRM ZRCO Complaints tab */}
+          {activeOrderTab === 'complaints' && (
+            <div style={{ background: 'white', borderRadius: '0 0 8px 8px', border: '1px solid #e5e7eb', borderTop: 'none', marginBottom: 12, overflow: 'hidden' }}>
+              {customerComplaints.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#9ca3af', padding: 32, fontSize: 13 }}>No CRM ZRCO Complaints found for this customer</div>
+              ) : !selectedComplaint ? (
+                /* Complaints list table */
+                <table className="kap-prod-table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th>Complaint ID</th>
+                      <th>Category</th>
+                      <th>Sub Category</th>
+                      <th>Department</th>
+                      <th>Status</th>
+                      <th>Created Date</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customerComplaints.map(comp => (
+                      <tr key={comp.id} className="order-row" style={{ cursor: 'pointer' }}
+                        onClick={() => setSelectedComplaint(comp)}>
+                        <td style={{ fontWeight: 700, color: '#dc2626', fontSize: 12 }}>{comp.id}</td>
+                        <td style={{ fontSize: 12 }}>{comp.category}</td>
+                        <td style={{ fontSize: 12 }}>{comp.subCategory}</td>
+                        <td style={{ fontSize: 12 }}>{comp.department}</td>
+                        <td><SOStatusBadge status={comp.status} /></td>
+                        <td style={{ fontSize: 12, color: '#6b7280' }}>{comp.createdDate}</td>
+                        <td>
+                          <button
+                            style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            onClick={e => { e.stopPropagation(); setSelectedComplaint(comp); }}
+                          >View</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                /* Complaint detail view */
+                (() => {
+                  const comp = selectedComplaint;
+                  const linkedSO = customerSOs.find(so => so.id === comp.serviceOrderId);
+                  return (
+                    <div style={{ padding: '14px 16px' }}>
+                      {/* Topbar */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+                        <button onClick={() => setSelectedComplaint(null)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, padding: 0 }}>
+                          <ArrowLeft size={14} /> Back
+                        </button>
+                        <span style={{ color: '#d1d5db' }}>›</span>
+                        <AlertCircle size={14} color="#dc2626" />
+                        <span style={{ fontWeight: 700, fontSize: 13.5, color: '#dc2626' }}>{comp.id}</span>
+                        <SOStatusBadge status={comp.status} />
+                        <span style={{ fontSize: 11, background: '#f3f4f6', color: '#374151', fontWeight: 700, padding: '3px 8px', borderRadius: 5, border: '1px solid #e5e7eb' }}>
+                          {comp.source}
+                        </span>
+                        <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                          <button
+                            style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                            onClick={() => linkedSO ? handleTagSO(linkedSO) : null}
+                          >
+                            <Wrench size={13} /> Follow-up Ticket
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Complaint Details */}
+                      <div style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Complaint Details</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px 16px' }}>
+                          {[
+                            ['Category Description', comp.categoryDesc],
+                            ['Transaction Type', comp.transactionType],
+                            ['Department', comp.department],
+                            ['Category', comp.category],
+                            ['Sub Category', comp.subCategory],
+                            ['Created Date', comp.createdDate],
+                          ].map(([l, v]) => (
+                            <div key={l}>
+                              <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{l}</div>
+                              <div style={{ fontSize: 12.5, color: '#1a1a2e', fontWeight: 500 }}>{v || '—'}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Status Timeline */}
+                      <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Status History</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          {comp.statusHistory?.map((h, i) => (
+                            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                              <div style={{ width: 9, height: 9, borderRadius: '50%', marginTop: 4, flexShrink: 0,
+                                background: i === comp.statusHistory.length - 1 ? '#16a34a' : '#d1d5db',
+                                border: `2px solid ${i === comp.statusHistory.length - 1 ? '#16a34a' : '#d1d5db'}` }} />
+                              <div>
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 2 }}>
+                                  <span style={{ fontSize: 12.5, fontWeight: 700, color: '#1a1a2e' }}>{h.status}</span>
+                                  <span style={{ fontSize: 11, color: '#9ca3af' }}>{h.date} · {h.by}</span>
+                                </div>
+                                <div style={{ fontSize: 12, color: '#374151' }}>{h.remarks}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Associated SO + Product + Customer — 3 columns */}
+                      {linkedSO && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+                          <div style={{ border: '1px solid #e0e7ff', borderRadius: 8, padding: '12px 14px', background: '#f8faff' }}>
+                            <div style={{ fontSize: 11.5, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Associated Service Order</div>
+                            {[
+                              ['SO Number', `#${linkedSO.id}`],
+                              ['SAP Reference', linkedSO.sapServiceOrderNo],
+                              ['Service Type', linkedSO.type],
+                              ['SR Ref', linkedSO.serviceRefId],
+                              ['Status', linkedSO.status],
+                              ['Created', linkedSO.createdDate],
+                            ].map(([l, v]) => (
+                              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', borderBottom: '1px solid #f0f4ff' }}>
+                                <span style={{ color: '#6b7280' }}>{l}</span>
+                                <span style={{ fontWeight: 600, color: l === 'SO Number' ? '#7c3aed' : '#1a1a2e' }}>{v}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px' }}>
+                            <div style={{ fontSize: 11.5, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Product Details</div>
+                            {[
+                              ['Product', linkedSO.product?.name],
+                              ['Brand', linkedSO.product?.brand],
+                              ['Family', linkedSO.product?.family],
+                              ['Serial No.', linkedSO.product?.serial],
+                              ['SKU', linkedSO.product?.sku],
+                              ['Order ID', linkedSO.orderId],
+                            ].map(([l, v]) => (
+                              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', borderBottom: '1px solid #f9fafb' }}>
+                                <span style={{ color: '#6b7280' }}>{l}</span>
+                                <span style={{ fontWeight: 600, color: l === 'Order ID' ? '#2563eb' : '#1a1a2e', textAlign: 'right', maxWidth: 120, wordBreak: 'break-word' }}>{v || '—'}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px' }}>
+                            <div style={{ fontSize: 11.5, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Customer Details</div>
+                            {[
+                              ['Name', linkedSO.customer?.name],
+                              ['Mobile', linkedSO.customer?.phone],
+                              ['Customer ID', linkedSO.customer?.code],
+                              ['Sold to Party', linkedSO.customer?.soldToParty],
+                              ['Sales Office', linkedSO.customer?.salesOffice],
+                              ['Store', linkedSO.customer?.storeCode],
+                            ].map(([l, v]) => (
+                              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', borderBottom: '1px solid #f9fafb' }}>
+                                <span style={{ color: '#6b7280' }}>{l}</span>
+                                <span style={{ fontWeight: 600, color: '#1a1a2e', textAlign: 'right', maxWidth: 120, wordBreak: 'break-word' }}>{v || '—'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          )}
+
+          {/* Service Orders tab */}
+          {activeOrderTab === 'so' && (
+            <div style={{ background: 'white', borderRadius: '0 0 8px 8px', border: '1px solid #e5e7eb', borderTop: 'none', marginBottom: 12, overflow: 'hidden' }}>
+              {customerSOs.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#9ca3af', padding: 32, fontSize: 13 }}>No service orders found</div>
+              ) : !selectedSOInTab ? (
+                /* SO list table */
+                <table className="kap-prod-table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th>SO Number</th>
+                      <th>SAP Reference</th>
+                      <th>Type</th>
+                      <th>Product</th>
+                      <th>Status</th>
+                      <th>Engineer</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customerSOs.map(so => (
+                      <tr key={so.id} className="order-row" style={{ background: foundSO?.id === so.id ? '#fdf4ff' : 'white', cursor: 'pointer' }}
+                        onClick={() => setSelectedSOInTab(so)}>
+                        <td style={{ fontWeight: 700, color: '#7c3aed', fontSize: 12 }}>#{so.id}</td>
+                        <td style={{ fontSize: 11.5, color: '#6b7280' }}>{so.sapServiceOrderNo}</td>
+                        <td style={{ fontSize: 12 }}>{so.type}</td>
+                        <td style={{ fontSize: 12, maxWidth: 160 }}>{so.product?.name?.slice(0, 30)}{so.product?.name?.length > 30 ? '…' : ''}</td>
+                        <td><SOStatusBadge status={so.status} /></td>
+                        <td style={{ fontSize: 12 }}>{so.engineer?.name}</td>
+                        <td>
+                          <button
+                            style={{ background: '#7c3aed', color: 'white', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            onClick={e => { e.stopPropagation(); handleTagSO(so); }}
+                          >Tag to Ticket</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                /* SO detail view */
+                <div style={{ padding: '14px 16px' }}>
+                  {/* Topbar */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+                    <button onClick={() => setSelectedSOInTab(null)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, padding: 0 }}>
+                      <ArrowLeft size={14} /> Back
+                    </button>
+                    <span style={{ color: '#d1d5db' }}>›</span>
+                    <span style={{ fontWeight: 700, fontSize: 13.5, color: '#1a1a2e' }}>Service Order #{selectedSOInTab.id}</span>
+                    <SOStatusBadge status={selectedSOInTab.status} />
+                    <span style={{ fontSize: 11, background: '#eff6ff', color: '#2563eb', fontWeight: 700, padding: '3px 8px', borderRadius: 5, border: '1px solid #bfdbfe' }}>
+                      SAP: {selectedSOInTab.sapServiceOrderNo}
+                    </span>
+                    <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexShrink: 0 }}>
+                      <button style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                        Raise Complaint
+                      </button>
+                      <button
+                        style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                        onClick={() => handleTagSO(selectedSOInTab)}
+                      >
+                        Follow-up Ticket
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Service Order Details */}
+                  <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <span style={{ fontWeight: 700, fontSize: 13, color: '#1a1a2e' }}>Service Order Details</span>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {selectedSOInTab.ticketId && <span style={{ fontSize: 11, background: '#eff6ff', color: '#2563eb', fontWeight: 700, padding: '2px 8px', borderRadius: 4, border: '1px solid #bfdbfe' }}>Ticket: {selectedSOInTab.ticketId}</span>}
+                        {selectedSOInTab.serviceRefId && <span style={{ fontSize: 11, background: '#f3f4f6', color: '#374151', fontWeight: 700, padding: '2px 8px', borderRadius: 4 }}>Ref: {selectedSOInTab.serviceRefId}</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px 16px' }}>
+                      {[
+                        ['Service Type', selectedSOInTab.type, false],
+                        ['Request Type', selectedSOInTab.requestType === 'Paid' ? `Paid (₹${selectedSOInTab.serviceCharges})` : 'Free', selectedSOInTab.requestType === 'Paid'],
+                        ['Created Date', selectedSOInTab.createdDate, false],
+                        ['Status', selectedSOInTab.status, false],
+                      ].map(([l, v, highlight]) => (
+                        <div key={l}>
+                          <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>{l}</div>
+                          <div style={{ fontSize: 13, color: highlight ? '#c2410c' : '#1a1a2e', fontWeight: 600 }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Product + Customer Details */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                    <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px' }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: '#1a1a2e', marginBottom: 10 }}>Product Details</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
+                        {[
+                          ['Product', selectedSOInTab.product?.name],
+                          ['Brand', selectedSOInTab.product?.brand],
+                          ['Serial No.', selectedSOInTab.product?.serial],
+                          ['Family', selectedSOInTab.product?.family],
+                          ['SKU', selectedSOInTab.product?.sku],
+                          ['Order ID', selectedSOInTab.orderId],
+                        ].map(([l, v]) => (
+                          <div key={l}>
+                            <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{l}</div>
+                            <div style={{ fontSize: 12.5, color: l === 'Order ID' ? '#2563eb' : '#1a1a2e', fontWeight: 500 }}>{v || '—'}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px' }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: '#1a1a2e', marginBottom: 10 }}>Customer Details</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
+                        {[
+                          ['Customer Name', selectedSOInTab.customer?.name],
+                          ['Mobile', selectedSOInTab.customer?.phone],
+                          ['Customer ID', selectedSOInTab.customer?.code],
+                          ['Sold to Party', selectedSOInTab.customer?.soldToParty],
+                          ['Sales Office', selectedSOInTab.customer?.salesOffice],
+                          ['Store', selectedSOInTab.customer?.storeCode],
+                        ].map(([l, v]) => (
+                          <div key={l}>
+                            <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{l}</div>
+                            <div style={{ fontSize: 12.5, color: '#1a1a2e', fontWeight: 500 }}>{v || '—'}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Engineer & Appointment */}
+                  <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: '#1a1a2e', marginBottom: 10 }}>Engineer & Appointment</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px 16px', marginBottom: 10 }}>
+                      {[
+                        ['Engineer Name', selectedSOInTab.engineer?.name, false],
+                        ['Engineer Contact', selectedSOInTab.engineer?.phone, true],
+                        ['Appointment Date & Time', selectedSOInTab.appointmentDate, false],
+                        ['Est. Completion', selectedSOInTab.estimatedTAT, false],
+                      ].map(([l, v, link]) => (
+                        <div key={l}>
+                          <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }}>{l}</div>
+                          <div style={{ fontSize: 12.5, color: link ? '#2563eb' : '#1a1a2e', fontWeight: 500 }}>{v || '—'}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {selectedSOInTab.serviceNote && (
+                      <div style={{ background: '#f9fafb', borderLeft: '3px solid #d1d5db', padding: '6px 10px', fontSize: 12, color: '#374151', marginBottom: 8, borderRadius: '0 4px 4px 0' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase' }}>Service Note: </span>{selectedSOInTab.serviceNote}
+                      </div>
+                    )}
+                    {selectedSOInTab.address && (
+                      <div style={{ fontSize: 12, color: '#6b7280' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase' }}>Service Address: </span>{selectedSOInTab.address}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Complaints */}
+                  {(() => {
+                    const soComplaints = complaints.filter(c => c.serviceOrderId === selectedSOInTab.id);
+                    if (!soComplaints.length) return null;
+                    return (
+                      <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: '#1a1a2e', marginBottom: 10 }}>Complaints ({soComplaints.length})</div>
+                        <table className="kap-prod-table" style={{ margin: 0 }}>
+                          <thead>
+                            <tr>
+                              <th>Complaint ID</th><th>Category</th><th>Sub Category</th><th>Department</th><th>Status</th><th>Date</th><th>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {soComplaints.map(c => (
+                              <tr key={c.id} className="order-row" style={{ cursor: 'pointer' }}
+                                onClick={() => { setSelectedComplaint(c); setActiveOrderTab('complaints'); }}>
+                                <td style={{ color: '#dc2626', fontWeight: 700, fontSize: 12 }}>{c.id}</td>
+                                <td style={{ fontSize: 12 }}>{c.category}</td>
+                                <td style={{ fontSize: 12 }}>{c.subCategory}</td>
+                                <td><span style={{ background: '#f3f4f6', color: '#374151', fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 4 }}>{c.department}</span></td>
+                                <td><SOStatusBadge status={c.status} /></td>
+                                <td style={{ fontSize: 12, color: '#6b7280' }}>{c.createdDate}</td>
+                                <td>
+                                  <button
+                                    style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                    onClick={e => { e.stopPropagation(); setSelectedComplaint(c); setActiveOrderTab('complaints'); }}
+                                  >View</button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Status Timeline */}
+                  {selectedSOInTab.statusHistory?.length > 0 && (
+                    <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px' }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: '#1a1a2e', marginBottom: 12 }}>Status Timeline</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {selectedSOInTab.statusHistory.map((h, i) => (
+                          <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', marginTop: 4, flexShrink: 0,
+                              background: i === selectedSOInTab.statusHistory.length - 1 ? '#16a34a' : '#d1d5db',
+                              border: i === selectedSOInTab.statusHistory.length - 1 ? '2px solid #16a34a' : '2px solid #d1d5db'
+                            }} />
+                            <div>
+                              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1a1a2e' }}>{h.status}</div>
+                              <div style={{ fontSize: 11.5, color: '#6b7280', marginTop: 1 }}>{h.date} · {h.by}</div>
+                              <div style={{ fontSize: 12, color: '#374151', marginTop: 2 }}>{h.remarks}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Order cards — shown for 'all' and 'orders' tabs */}
+          {(activeOrderTab === 'all' || activeOrderTab === 'orders') && filteredOrders.length === 0 && (
             <div style={{ textAlign: 'center', color: '#9ca3af', padding: 24, fontSize: 13 }}>No orders found</div>
           )}
 
-          {filteredOrders.map(order => {
+          {(activeOrderTab === 'all' || activeOrderTab === 'orders') && filteredOrders.map(order => {
             const isExpanded = expandedOrderId === order.orderId;
             const prodInfoOpen = openAccordions[`prod-${order.orderId}`];
             const orderInfoOpen = openAccordions[`info-${order.orderId}`];
@@ -581,7 +1262,8 @@ export default function AddTicketFlow({ onBack }) {
                               </thead>
                               <tbody>
                                 {orderSOs.map(so => (
-                                  <tr key={so.id} style={{ background: foundSO?.id === so.id ? '#fdf4ff' : 'white' }}>
+                                  <tr key={so.id} className="order-row" style={{ background: foundSO?.id === so.id ? '#fdf4ff' : 'white', cursor: 'pointer' }}
+                                    onClick={() => { setSelectedSOInTab(so); setActiveOrderTab('so'); }}>
                                     <td style={{ fontWeight: 700, color: '#7c3aed', fontSize: 12 }}>#{so.id}</td>
                                     <td style={{ fontSize: 11.5, color: '#6b7280' }}>{so.sapServiceOrderNo}</td>
                                     <td style={{ fontSize: 12 }}>{so.type}</td>
@@ -591,9 +1273,9 @@ export default function AddTicketFlow({ onBack }) {
                                     <td>
                                       <button
                                         style={{ background: '#7c3aed', color: 'white', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                                        onClick={() => handleTagSO(so)}
+                                        onClick={e => { e.stopPropagation(); setSelectedSOInTab(so); setActiveOrderTab('so'); }}
                                       >
-                                        Tag to Ticket
+                                        View
                                       </button>
                                     </td>
                                   </tr>

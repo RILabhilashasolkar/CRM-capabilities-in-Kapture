@@ -1,10 +1,10 @@
 import { Bell, GraduationCap, ChevronDown, RefreshCw } from 'lucide-react';
 import { currentUser } from '../../data/dummyData';
 
-export default function Header() {
+export default function Header({ title = 'Tickets' }) {
   return (
     <div className="k-top-bar">
-      <span className="font-semibold text-gray-800 text-sm flex-1">Tickets</span>
+      <span className="font-semibold text-gray-800 text-sm flex-1">{title}</span>
       <button className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 border border-gray-200 rounded px-2 py-1 mr-1">
         <GraduationCap size={13} /><span>KM Portal</span>
       </button>

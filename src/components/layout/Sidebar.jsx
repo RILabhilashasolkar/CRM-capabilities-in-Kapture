@@ -71,15 +71,10 @@ export default function Sidebar({ activeSection, onSectionChange, activeView, on
           </div>
           <div className="flex-1 overflow-y-auto py-1">
             <div className="sidebar-section">SEARCH BY</div>
-            <div className="sidebar-item text-xs" style={{ color: '#93c5fd' }}>● Mobile Number</div>
-            <div className="sidebar-item text-xs">Order ID</div>
-            <div className="sidebar-item text-xs">Service Order No.</div>
+            <div className="sidebar-item text-xs active" style={{ cursor: 'pointer' }} onClick={() => onSectionChange('crm')}>● Customer Search</div>
             <div className="sidebar-section mt-2">QUICK ACCESS</div>
-            <div className="sidebar-item text-xs">Recent Service Orders</div>
-            <div className="sidebar-item text-xs">Pending Complaints</div>
-            <div className="sidebar-section mt-2">CREATE</div>
-            <div className="sidebar-item text-xs">New Service Request</div>
-            <div className="sidebar-item text-xs">Raise Complaint</div>
+            <div className="sidebar-item text-xs" style={{ cursor: 'pointer' }} onClick={() => onSectionChange('crm')}>Recent Service Orders</div>
+            <div className="sidebar-item text-xs" style={{ cursor: 'pointer' }} onClick={() => onSectionChange('crm')}>Pending Complaints</div>
           </div>
         </div>
       )}

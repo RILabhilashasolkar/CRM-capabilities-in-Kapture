@@ -53,8 +53,8 @@ function App() {
   }
 
   const handleCreateTicket = (order, so) => {
-    // For now: navigate back — ticket creation reuses existing flow
-    alert(`Creating ticket for ${so ? `Service Order #${so.id}` : `Order ${order?.orderId || ''}`}\n\nIn production: opens Kapture ticket creation with pre-filled order/SO data.`)
+    setSection('tickets')
+    setTicketView('All Pending')
   }
 
   const handleRaiseComplaint = (so) => {

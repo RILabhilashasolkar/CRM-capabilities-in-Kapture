@@ -126,6 +126,23 @@ export const serviceOrders = [
 // ── Complaints ─────────────────────────────────────────────────────────────
 export const complaints = [
   {
+    id: 'COMP-2026-8834512901',
+    serviceOrderId: '86379901',
+    customer: { name: 'Abhilash Asolkar', phone: '9689808472' },
+    categoryDesc: 'Complaints',
+    transactionType: 'Digital complaints',
+    department: 'ResQ',
+    category: 'Repair related',
+    subCategory: 'Repeated visit',
+    source: 'Call',
+    status: 'In progress',
+    createdDate: '17-05-2026',
+    statusHistory: [
+      { date: '17-05-2026 11:30', status: 'Raised', by: 'Abhilash Asolkar', remarks: 'Complaint raised – AC repair issue not resolved after engineer visit' },
+      { date: '18-05-2026 10:00', status: 'In progress', by: 'ResQ Team', remarks: 'Escalated to field service team for re-inspection' },
+    ],
+  },
+  {
     id: 'COMP-2024-7374792384',
     serviceOrderId: '86379827',
     customer: { name: 'Gajendiran Perumal', phone: '9916265181' },
