@@ -8,8 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "predeploy": "vite build",
-    "deploy": "gh-pages -d dist"
+    "predeploy": "vite build && touch dist/.nojekyll",
+    "deploy": "gh-pages -d dist --dotfiles"
   },
   "dependencies": {
     "lucide-react": "^1.16.0",
