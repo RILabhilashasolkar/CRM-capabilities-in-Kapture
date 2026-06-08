@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronUp, ChevronDown, Search, User, Truck, Calendar, ShoppingBag, Upload, Folder, X, Wrench, AlertCircle, Package, MapPin, Shield, ArrowLeft, Clock } from 'lucide-react';
 import { customers, customerOrders, serviceOrders, complaints } from '../../data/dummyData';
 import CRMCreateSR from '../crm/CRMCreateSR';
+import CRMRaiseComplaint from '../crm/CRMRaiseComplaint';
 
 // Folder tree matching real Kapture
 const FOLDER_TREE = {
@@ -78,6 +79,7 @@ export default function AddTicketFlow({ onBack }) {
   const [foundSO, setFoundSO] = useState(null);
   const [taggedSO, setTaggedSO] = useState(null);
   const [createSRFor, setCreateSRFor] = useState(null);
+  const [raiseComplaintFor, setRaiseComplaintFor] = useState(null);
   const [newlyCreatedSOs, setNewlyCreatedSOs] = useState([]);
   const [srCreatedBanner, setSrCreatedBanner] = useState(null);
 
@@ -320,6 +322,17 @@ export default function AddTicketFlow({ onBack }) {
         customer={foundCustomer}
         onBack={() => setStep('orders')}
         onSuccess={handleSRSuccess}
+      />
+    );
+  }
+
+  // ── STEP: raiseComplaint ─────────────────────────────────────────────────
+  if (step === 'raiseComplaint') {
+    return (
+      <CRMRaiseComplaint
+        so={raiseComplaintFor}
+        onBack={() => setStep('orders')}
+        onSuccess={() => setStep('orders')}
       />
     );
   }
@@ -1004,7 +1017,10 @@ export default function AddTicketFlow({ onBack }) {
                       SAP: {selectedSOInTab.sapServiceOrderNo}
                     </span>
                     <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexShrink: 0 }}>
-                      <button style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                      <button
+                        style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                        onClick={() => { setRaiseComplaintFor(selectedSOInTab); setStep('raiseComplaint'); }}
+                      >
                         Raise Complaint
                       </button>
                       <button
