@@ -3,12 +3,12 @@ export const currentUser = { name: 'Abhilash Asolkar', avatar: 'AA' };
 // ── Kapture tickets ─────────────────────────────────────────────────────
 export const tickets = [
   { id: 'TKT-7781', title: 'Complaint follow up', customer: 'Anushq8801235091', phone: '7791015502', source: 'RD.IN', type: 'Call', vertical: 'Complaint', issueType: 'Repair Related', priority: 'Low', status: 'Pending', assignee: 'Uday Adhikari', sla: 'SLA is violated', date: '18-05-2026', subStatus: 'Unattended', taggedOrder: null },
-  { id: 'TKT-7782', title: 'NEHA ELECTRONICS AND MOBILE CENTRE - Installation Related', customer: 'NEHA ELECTRONICS', phone: '9689808472', source: 'JMD', type: 'Email', vertical: 'Enquiry', issueType: 'Demo & Installation', priority: 'Low', status: 'Pending', assignee: 'Uday Adhikari', sla: '1:00:41', date: '18-05-2026', subStatus: 'Unattended', taggedOrder: 'B63515626500726' },
+  { id: 'TKT-7782', title: 'NEHA ELECTRONICS AND MOBILE CENTRE - Installation Related', customer: 'NEHA ELECTRONICS', phone: '9689808472', source: 'JMD', type: 'Email', vertical: 'Enquiry', issueType: 'Demo & Installation', priority: 'Low', status: 'Pending', assignee: 'Uday Adhikari', sla: '1:00:41', date: '18-05-2026', subStatus: 'Unattended', taggedOrder: 'B63515626500726', notes: 'Customer reported AC cooling not effective after installation. Engineer visit scheduled for re-inspection. Customer available post 10AM.' },
   { id: 'TKT-7783', title: 'MK - Repair related', customer: 'Abdul Jabir Khan', phone: '8800123456', source: 'RD.IN', type: 'Call', vertical: 'Request', issueType: 'Repair Related', priority: 'Low', status: 'Pending', assignee: 'Nivedhita Rajesh Dev', sla: '4 Days Remaining', date: '18-05-2026', subStatus: 'Unattended', taggedOrder: 'JMD-20260101-440012' },
   { id: 'TKT-7784', title: 'External – ac not serviced, engineer no-show via ResQ app booking', customer: 'sankarparvathi528@gmail.com', phone: '7791015503', source: 'RD.IN', type: 'Email', vertical: 'Complaint', issueType: 'Repair Related', priority: 'Low', status: 'Pending', assignee: 'Sachin Singh Bhadu', sla: '5 Days Remaining', date: '18-05-2026', subStatus: 'Unattended', taggedOrder: null },
   { id: 'TKT-7785', title: 'Invoice & Warranty Activation Issue – HP Laptop Mobile 7419885341', customer: 'Sachin Singh Bhadu', phone: '7419885341', source: 'JMD', type: 'Email', vertical: 'Enquiry', issueType: 'Billing Related', priority: 'Low', status: 'Pending', assignee: 'Sachin Singh Bhadu', sla: '5 Days Remaining', date: '18-05-2026', subStatus: 'Unattended', taggedOrder: null },
   { id: 'TKT-7786', title: 'Refund related', customer: 'PRASHANT VERMA', phone: '9916265181', source: 'RD.IN', type: 'Call', vertical: 'Request', issueType: 'Refunds', priority: 'Low', status: 'Pending', assignee: 'PRASHANT VERMA', sla: 'SLA is violated', date: '18-05-2026', subStatus: 'Unattended', taggedOrder: null },
-  { id: 'TKT-7787', title: 'Return Follow-up – Washing Machine', customer: 'Gajendiran Perumal', phone: '9916265181', source: 'RD.IN', type: 'Call', vertical: 'Request', issueType: 'Store Related', priority: 'Low', status: 'Pending', assignee: 'RABI GHOSH', sla: 'SLA is violated', date: '18-05-2026', subStatus: 'Unattended', taggedOrder: 'ORD-20240402-001' },
+  { id: 'TKT-7787', title: 'Return Follow-up – Washing Machine', customer: 'Gajendiran Perumal', phone: '9916265181', source: 'RD.IN', type: 'Call', vertical: 'Request', issueType: 'Store Related', priority: 'Low', status: 'Pending', assignee: 'RABI GHOSH', sla: 'SLA is violated', date: '18-05-2026', subStatus: 'Unattended', taggedOrder: 'ORD-20240402-001', notes: 'Installation was delayed by 3 days. Customer escalated via call. Engineer no-show on first slot – rescheduled.' },
 ];
 
 // ── Customers ─────────────────────────────────────────────────────────────
@@ -142,8 +142,8 @@ export const complaints = [
       { date: '18-05-2026 10:00', status: 'In progress', by: 'ResQ Team', remarks: 'Escalated to field service team for re-inspection' },
     ],
     followUps: [
-      { id: 'TKT-7782', title: 'AC repair follow-up – Bluestar 2 Ton Split AC (IA322DXU)', type: 'Email', vertical: 'Enquiry', issueType: 'Service Quality', status: 'Pending', assignee: 'Uday Adhikari', date: '18-05-2026' },
-      { id: 'TKT-7790', title: 'Re-inspection request – cooling still not effective after repair', type: 'Call', vertical: 'Complaint', issueType: 'Repair Related', status: 'Pending', assignee: 'Abhilash Asolkar', date: '20-05-2026' },
+      { id: 'TKT-7782', title: 'AC repair follow-up – Bluestar 2 Ton Split AC (IA322DXU)', type: 'Email', vertical: 'Enquiry', issueType: 'Service Quality', status: 'Pending', assignee: 'Uday Adhikari', date: '18-05-2026', notes: 'Customer reported AC cooling not effective after installation. Engineer visit scheduled for re-inspection. Customer available post 10AM.' },
+      { id: 'TKT-7790', title: 'Re-inspection request – cooling still not effective after repair', type: 'Call', vertical: 'Complaint', issueType: 'Repair Related', status: 'Pending', assignee: 'Abhilash Asolkar', date: '20-05-2026', notes: 'Second follow-up call from customer. Outdoor unit making noise, gas leak suspected. Escalated to senior technician.' },
     ],
   },
   {
@@ -163,7 +163,7 @@ export const complaints = [
       { date: '01-05-2024 09:00', status: 'In progress', by: 'ResQ Team', remarks: 'Escalated to field service' },
     ],
     followUps: [
-      { id: 'TKT-7787', title: 'Return Follow-up – Washing Machine installation not done', type: 'Call', vertical: 'Request', issueType: 'Demo & Installation', status: 'Pending', assignee: 'RABI GHOSH', date: '03-05-2024' },
+      { id: 'TKT-7787', title: 'Return Follow-up – Washing Machine installation not done', type: 'Call', vertical: 'Request', issueType: 'Demo & Installation', status: 'Pending', assignee: 'RABI GHOSH', date: '03-05-2024', notes: 'Installation was delayed by 3 days. Customer escalated via call. Engineer no-show on first slot – rescheduled.' },
     ],
   },
 ];

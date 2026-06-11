@@ -919,7 +919,10 @@ export default function AddTicketFlow({ onBack }) {
                                   <td style={{ color: '#2563eb', fontWeight: 700, fontSize: 12 }}>{f.id}</td>
                                   <td><span style={{ background: '#eff6ff', color: '#2563eb', fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 4 }}>{f.type}</span></td>
                                   <td style={{ fontSize: 12 }}>{f.issueType}</td>
-                                  <td style={{ fontSize: 12, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.title}</td>
+                                  <td style={{ fontSize: 12 }}>
+                                    <div style={{ fontWeight: 500 }}>{f.title}</div>
+                                    {f.notes && <div style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic', marginTop: 3 }}>📝 {f.notes}</div>}
+                                  </td>
                                   <td><SOStatusBadge status={f.status} /></td>
                                   <td style={{ fontSize: 12, color: '#374151' }}>{f.assignee}</td>
                                   <td style={{ fontSize: 12, color: '#6b7280' }}>{f.date}</td>
@@ -1210,7 +1213,10 @@ export default function AddTicketFlow({ onBack }) {
                                 <td style={{ color: '#2563eb', fontWeight: 700, fontSize: 12 }}>{t.id}</td>
                                 <td><span style={{ background: '#eff6ff', color: '#2563eb', fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 4 }}>{t.type}</span></td>
                                 <td style={{ fontSize: 12 }}>{t.issueType}</td>
-                                <td style={{ fontSize: 12, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</td>
+                                <td style={{ fontSize: 12 }}>
+                                  <div style={{ fontWeight: 500 }}>{t.title}</div>
+                                  {t.notes && <div style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic', marginTop: 3 }}>📝 {t.notes}</div>}
+                                </td>
                                 <td><SOStatusBadge status={t.status} /></td>
                                 <td style={{ fontSize: 12, color: '#374151' }}>{t.assignee}</td>
                                 <td style={{ fontSize: 12, color: '#6b7280' }}>{t.date}</td>
