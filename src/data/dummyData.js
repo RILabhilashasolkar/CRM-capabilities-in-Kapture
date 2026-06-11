@@ -141,6 +141,10 @@ export const complaints = [
       { date: '17-05-2026 11:30', status: 'Raised', by: 'Abhilash Asolkar', remarks: 'Complaint raised – AC repair issue not resolved after engineer visit' },
       { date: '18-05-2026 10:00', status: 'In progress', by: 'ResQ Team', remarks: 'Escalated to field service team for re-inspection' },
     ],
+    followUps: [
+      { id: 'TKT-7782', title: 'AC repair follow-up – Bluestar 2 Ton Split AC (IA322DXU)', type: 'Email', vertical: 'Enquiry', issueType: 'Service Quality', status: 'Pending', assignee: 'Uday Adhikari', date: '18-05-2026' },
+      { id: 'TKT-7790', title: 'Re-inspection request – cooling still not effective after repair', type: 'Call', vertical: 'Complaint', issueType: 'Repair Related', status: 'Pending', assignee: 'Abhilash Asolkar', date: '20-05-2026' },
+    ],
   },
   {
     id: 'COMP-2024-7374792384',
@@ -157,6 +161,9 @@ export const complaints = [
     statusHistory: [
       { date: '30-04-2024 10:00', status: 'Raised', by: 'Abhilash Asolkar', remarks: 'Complaint raised – installation delayed' },
       { date: '01-05-2024 09:00', status: 'In progress', by: 'ResQ Team', remarks: 'Escalated to field service' },
+    ],
+    followUps: [
+      { id: 'TKT-7787', title: 'Return Follow-up – Washing Machine installation not done', type: 'Call', vertical: 'Request', issueType: 'Demo & Installation', status: 'Pending', assignee: 'RABI GHOSH', date: '03-05-2024' },
     ],
   },
 ];

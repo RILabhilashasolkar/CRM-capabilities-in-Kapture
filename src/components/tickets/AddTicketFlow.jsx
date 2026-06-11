@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronUp, ChevronDown, Search, User, Truck, Calendar, ShoppingBag, Upload, Folder, X, Wrench, AlertCircle, Package, MapPin, Shield, ArrowLeft, Clock } from 'lucide-react';
-import { customers, customerOrders, serviceOrders, complaints } from '../../data/dummyData';
+import { customers, customerOrders, serviceOrders, complaints, tickets } from '../../data/dummyData';
 import CRMCreateSR from '../crm/CRMCreateSR';
 import CRMRaiseComplaint from '../crm/CRMRaiseComplaint';
 
@@ -902,6 +902,33 @@ export default function AddTicketFlow({ onBack }) {
                         </div>
                       </div>
 
+                      {/* Follow-up Tickets against this Complaint */}
+                      {comp.followUps?.length > 0 && (
+                        <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: '#1a1a2e', marginBottom: 10 }}>Follow-up Enquiries ({comp.followUps.length})</div>
+                          <table className="kap-prod-table" style={{ margin: 0 }}>
+                            <thead>
+                              <tr>
+                                <th>Ticket ID</th><th>Type</th><th>Issue Type</th><th>Title</th><th>Status</th><th>Assignee</th><th>Date</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {comp.followUps.map(f => (
+                                <tr key={f.id} className="order-row">
+                                  <td style={{ color: '#2563eb', fontWeight: 700, fontSize: 12 }}>{f.id}</td>
+                                  <td><span style={{ background: '#eff6ff', color: '#2563eb', fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 4 }}>{f.type}</span></td>
+                                  <td style={{ fontSize: 12 }}>{f.issueType}</td>
+                                  <td style={{ fontSize: 12, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.title}</td>
+                                  <td><SOStatusBadge status={f.status} /></td>
+                                  <td style={{ fontSize: 12, color: '#374151' }}>{f.assignee}</td>
+                                  <td style={{ fontSize: 12, color: '#6b7280' }}>{f.date}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
                       {/* Associated SO + Product + Customer — 3 columns */}
                       {linkedSO && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
@@ -1153,6 +1180,39 @@ export default function AddTicketFlow({ onBack }) {
                                     onClick={e => { e.stopPropagation(); setSelectedComplaint(c); setActiveOrderTab('complaints'); }}
                                   >View</button>
                                 </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Follow-up Tickets */}
+                  {(() => {
+                    const soTickets = tickets.filter(t =>
+                      t.id === selectedSOInTab.ticketId || t.taggedOrder === selectedSOInTab.orderId
+                    );
+                    if (!soTickets.length) return null;
+                    return (
+                      <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: '#1a1a2e', marginBottom: 10 }}>Follow-up Enquiries ({soTickets.length})</div>
+                        <table className="kap-prod-table" style={{ margin: 0 }}>
+                          <thead>
+                            <tr>
+                              <th>Ticket ID</th><th>Type</th><th>Issue Type</th><th>Title</th><th>Status</th><th>Assignee</th><th>Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {soTickets.map(t => (
+                              <tr key={t.id} className="order-row">
+                                <td style={{ color: '#2563eb', fontWeight: 700, fontSize: 12 }}>{t.id}</td>
+                                <td><span style={{ background: '#eff6ff', color: '#2563eb', fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 4 }}>{t.type}</span></td>
+                                <td style={{ fontSize: 12 }}>{t.issueType}</td>
+                                <td style={{ fontSize: 12, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</td>
+                                <td><SOStatusBadge status={t.status} /></td>
+                                <td style={{ fontSize: 12, color: '#374151' }}>{t.assignee}</td>
+                                <td style={{ fontSize: 12, color: '#6b7280' }}>{t.date}</td>
                               </tr>
                             ))}
                           </tbody>
