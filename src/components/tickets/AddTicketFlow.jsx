@@ -90,6 +90,7 @@ export default function AddTicketFlow({ onBack }) {
   const [selComplexity, setSelComplexity] = useState('');
   const [selSubFolder, setSelSubFolder] = useState('');
   const [title, setTitle] = useState('');
+  const [notes, setNotes] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
   const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -1604,6 +1605,19 @@ export default function AddTicketFlow({ onBack }) {
         <div style={{ marginBottom: 12 }}>
           <label className="kap-label" style={{ fontWeight: 600, color: '#374151' }}>Assigned To</label>
           <input className="kap-input" value="Abhilash Asolkar (Me)" readOnly style={{ background: '#f9fafb', color: '#6b7280' }} />
+        </div>
+
+        {/* Notes */}
+        <div style={{ marginBottom: 12 }}>
+          <label className="kap-label" style={{ fontWeight: 600, color: '#374151' }}>Notes</label>
+          <textarea
+            className="kap-input"
+            placeholder="Add notes or comments for this ticket..."
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            rows={3}
+            style={{ resize: 'vertical', minHeight: 72, fontFamily: 'inherit', lineHeight: 1.5 }}
+          />
         </div>
 
         {/* File upload */}
