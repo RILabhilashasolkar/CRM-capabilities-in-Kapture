@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronUp, ChevronDown, Search, User, Truck, Calendar, ShoppingBag, Upload, Folder, X, Wrench, AlertCircle, Package, MapPin, Shield, ArrowLeft, Clock } from 'lucide-react';
+import { ChevronUp, ChevronDown, Search, User, Truck, Calendar, ShoppingBag, Upload, Folder, X, Wrench, AlertCircle, Package, MapPin, Shield, ArrowLeft, Clock, ExternalLink, Copy, CheckCheck, FileText, RotateCcw } from 'lucide-react';
 import { customers, customerOrders, serviceOrders, complaints, tickets } from '../../data/dummyData';
 import CRMCreateSR from '../crm/CRMCreateSR';
 import CRMRaiseComplaint from '../crm/CRMRaiseComplaint';
@@ -51,6 +51,11 @@ function SOStatusBadge({ status }) {
 export default function AddTicketFlow({ onBack }) {
   const [step, setStep] = useState('search'); // 'search' | 'orders' | 'create' | 'createSR'
 
+  // Live data store — initialized from dummyData, updated when B2B records are added
+  const [liveCustomers, setLiveCustomers] = useState(() => ({ ...customers }));
+  const [liveCustomerOrders, setLiveCustomerOrders] = useState(() => ({ ...customerOrders }));
+  const [liveSOs, setLiveSOs] = useState(() => [...serviceOrders]);
+
   // Search form state
   const [form, setForm] = useState({ customer: '', name: '', phone: '', email: '', customerCode: '', orderId: '', erpOrderId: '', company: '' });
   const [searchSectionOpen, setSearchSectionOpen] = useState(true);
@@ -83,6 +88,21 @@ export default function AddTicketFlow({ onBack }) {
   const [newlyCreatedSOs, setNewlyCreatedSOs] = useState([]);
   const [srCreatedBanner, setSrCreatedBanner] = useState(null);
 
+  // Shipsy / audit state
+  const [copiedLink, setCopiedLink] = useState(null);
+  const logAuditEvent = (eventType, orderId = null, extra = {}) => {
+    console.log('[Kapture Audit]', { event: eventType, agentId: 'current-user', orderId, timestamp: new Date().toISOString(), ...extra });
+  };
+
+  // B2B/PBG SR — Case 1 (no customer) & Case 2 (no product history)
+  const [showNoCustomerScript, setShowNoCustomerScript] = useState(false);
+  const [b2bFormData, setB2bFormData] = useState({ firstName: '', lastName: '', phone: '', dop: '', serial: '', family: '', brand: '', productId: '', mfgSerial: '', serviceType: '', symptom: '', flat: '', building: '', street: '', area: '', pincode: '', city: '', state: '', note: '' });
+  const [b2bEligibilityChecked, setB2bEligibilityChecked] = useState(false);
+  const [b2bSRSubmitted, setB2bSRSubmitted] = useState(false);
+  const [b2bSRId, setB2bSRId] = useState('');
+  const [addProductOpen, setAddProductOpen] = useState(false);
+  const [newProd, setNewProd] = useState({ dop: '', family: '', brand: '', productId: '', mfgSerial: '' });
+
   // Folder + ticket state
   const [selType, setSelType] = useState('');
   const [selSource, setSelSource] = useState('');
@@ -103,6 +123,7 @@ export default function AddTicketFlow({ onBack }) {
     setSelectedSOInTab(null);
     setSelectedIObject(null);
     setSelectedComplaint(null);
+    setShowNoCustomerScript(false);
 
     // OR SEARCH BY tab bar (SO / SR / Serial / Complaint)
     if (soQuery.trim()) {
@@ -110,13 +131,13 @@ export default function AddTicketFlow({ onBack }) {
       let so = null;
 
       if (soSearchMode === 'soNumber') {
-        so = serviceOrders.find(s =>
+        so = liveSOs.find(s =>
           s.id === q || s.sapServiceOrderNo.toLowerCase() === q.toLowerCase()
         );
         if (!so) { setSearchError(`No service order found for "${q}". Try: 86379827`); return; }
         phone = so.customer.phone;
-        cust = customers[phone] || { name: so.customer.name, code: so.customer.code, email: '—', phone: so.customer.phone };
-        ords = customerOrders[phone] || [];
+        cust = liveCustomers[phone] || { name: so.customer.name, code: so.customer.code, email: '—', phone: so.customer.phone };
+        ords = liveCustomerOrders[phone] || [];
         setFoundCustomer(cust); setOrders(ords); setFoundSO(so);
         setExpandedOrderId(so.orderId);
         setActiveOrderTab('so'); setSelectedSOInTab(so);
@@ -124,13 +145,13 @@ export default function AddTicketFlow({ onBack }) {
         return;
 
       } else if (soSearchMode === 'srNumber') {
-        so = serviceOrders.find(s =>
+        so = liveSOs.find(s =>
           s.serviceRefId && s.serviceRefId.toLowerCase() === q.toLowerCase()
         );
         if (!so) { setSearchError(`No service request found for "${q}". Try: SR-JMD-2026-0044`); return; }
         phone = so.customer.phone;
-        cust = customers[phone] || { name: so.customer.name, code: so.customer.code, email: '—', phone: so.customer.phone };
-        ords = customerOrders[phone] || [];
+        cust = liveCustomers[phone] || { name: so.customer.name, code: so.customer.code, email: '—', phone: so.customer.phone };
+        ords = liveCustomerOrders[phone] || [];
         setFoundCustomer(cust); setOrders(ords); setFoundSO(so);
         setExpandedOrderId(so.orderId);
         setActiveOrderTab('so'); setSelectedSOInTab(so);
@@ -139,16 +160,16 @@ export default function AddTicketFlow({ onBack }) {
 
       } else if (soSearchMode === 'serialNo') {
         let foundPhone = null, foundOrder = null, foundProduct = null;
-        Object.entries(customerOrders).forEach(([p, oList]) => {
+        Object.entries(liveCustomerOrders).forEach(([p, oList]) => {
           oList.forEach(o => {
             const pr = o.products.find(pr => pr.serialNo === q);
             if (pr) { foundPhone = p; foundOrder = o; foundProduct = pr; }
           });
         });
         if (!foundPhone) { setSearchError(`No product found with serial number "${q}". Try: SN-VT-2024-0019`); return; }
-        cust = customers[foundPhone] || null;
-        ords = customerOrders[foundPhone] || [];
-        so = serviceOrders.find(s => s.orderId === foundOrder?.orderId) || null;
+        cust = liveCustomers[foundPhone] || null;
+        ords = liveCustomerOrders[foundPhone] || [];
+        so = liveSOs.find(s => s.orderId === foundOrder?.orderId) || null;
         const iObj = foundProduct ? { ...foundProduct, order: foundOrder } : null;
         setFoundCustomer(cust); setOrders(ords);
         if (so) { setFoundSO(so); setExpandedOrderId(so.orderId); }
@@ -160,11 +181,11 @@ export default function AddTicketFlow({ onBack }) {
       } else if (soSearchMode === 'complaint') {
         const comp = complaints.find(c => c.id.toLowerCase() === q.toLowerCase());
         if (!comp) { setSearchError(`No complaint found for "${q}". Try: COMP-2026-8834512901`); return; }
-        so = serviceOrders.find(s => s.id === comp.serviceOrderId);
+        so = liveSOs.find(s => s.id === comp.serviceOrderId);
         if (!so) { setSearchError(`Complaint found but no linked service order for "${q}"`); return; }
         phone = so.customer.phone;
-        cust = customers[phone] || { name: so.customer.name, code: so.customer.code, email: '—', phone: so.customer.phone };
-        ords = customerOrders[phone] || [];
+        cust = liveCustomers[phone] || { name: so.customer.name, code: so.customer.code, email: '—', phone: so.customer.phone };
+        ords = liveCustomerOrders[phone] || [];
         setFoundCustomer(cust); setOrders(ords); setFoundSO(so);
         setExpandedOrderId(so.orderId);
         setActiveOrderTab('complaints'); setSelectedComplaint(comp);
@@ -175,21 +196,21 @@ export default function AddTicketFlow({ onBack }) {
 
     // Form-based search
     const q = form.phone || form.customer;
-    if (q && customers[q]) { cust = customers[q]; ords = customerOrders[q] || []; phone = q; }
+    if (q && liveCustomers[q]) { cust = liveCustomers[q]; ords = liveCustomerOrders[q] || []; phone = q; }
     else if (form.customerCode) {
-      Object.entries(customers).forEach(([p, c]) => { if (c.code === form.customerCode) { cust = c; ords = customerOrders[p] || []; phone = p; } });
+      Object.entries(liveCustomers).forEach(([p, c]) => { if (c.code === form.customerCode) { cust = c; ords = liveCustomerOrders[p] || []; phone = p; } });
     } else if (form.name) {
-      Object.entries(customers).forEach(([p, c]) => { if (c.name.toLowerCase().includes(form.name.toLowerCase())) { cust = c; ords = customerOrders[p] || []; phone = p; } });
+      Object.entries(liveCustomers).forEach(([p, c]) => { if (c.name.toLowerCase().includes(form.name.toLowerCase())) { cust = c; ords = liveCustomerOrders[p] || []; phone = p; } });
     } else if (form.orderId) {
       let matchedOrder = null;
-      Object.entries(customerOrders).forEach(([p, oList]) => {
+      Object.entries(liveCustomerOrders).forEach(([p, oList]) => {
         const match = oList.find(o => o.orderId.toLowerCase() === form.orderId.toLowerCase());
-        if (match) { cust = customers[p]; ords = oList; phone = p; matchedOrder = match; }
+        if (match) { cust = liveCustomers[p]; ords = oList; phone = p; matchedOrder = match; }
       });
       if (matchedOrder) { setExpandedOrderId(matchedOrder.orderId); setActiveOrderTab('orders'); }
     }
 
-    if (!cust) { setSearchError('No customer found. Try phone: 9916265181 or SO No: 86379827'); return; }
+    if (!cust) { setSearchError('No customer found. Try phone: 9916265181 or SO No: 86379827'); setShowNoCustomerScript(true); return; }
     setFoundCustomer(cust);
     setOrders(ords);
     setSearchError('');
@@ -244,6 +265,19 @@ export default function AddTicketFlow({ onBack }) {
     setNewlyCreatedSOs(prev => [...prev, newSO]);
     setSrCreatedBanner(newSO);
     setExpandedOrderId(createSRFor?.order?.orderId);
+    // If this was a synthetic (B2B/new-product) order, persist it to live data so future searches find it
+    const syntheticOrder = createSRFor?.order;
+    if (syntheticOrder && foundCustomer?.phone) {
+      setLiveCustomerOrders(prev => {
+        const existing = prev[foundCustomer.phone] || [];
+        const alreadySaved = existing.some(o => o.orderId === syntheticOrder.orderId);
+        return alreadySaved ? prev : { ...prev, [foundCustomer.phone]: [...existing, syntheticOrder] };
+      });
+      setOrders(prev => {
+        const alreadySaved = prev.some(o => o.orderId === syntheticOrder.orderId);
+        return alreadySaved ? prev : [...prev, syntheticOrder];
+      });
+    }
     setCreateSRFor(null);
     setStep('orders');
   };
@@ -253,7 +287,7 @@ export default function AddTicketFlow({ onBack }) {
   const filteredOrders = orderFilterId ? orders.filter(o => o.orderId.toLowerCase().includes(orderFilterId.toLowerCase())) : orders;
 
   const customerPhone = foundCustomer?.phone;
-  const allSOs = [...serviceOrders, ...newlyCreatedSOs];
+  const allSOs = [...liveSOs, ...newlyCreatedSOs];
   const customerSOs = allSOs.filter(so => so.customer?.phone === customerPhone);
 
   // iObjects = installed base items (one per physical product with a serial number)
@@ -338,6 +372,226 @@ export default function AddTicketFlow({ onBack }) {
     );
   }
 
+  // ── STEP: b2bSR — Case 1: no customer found, B2B/PBG SR creation ─────────
+  if (step === 'b2bSR') {
+    const B2B_FAMILIES = ['Air Conditioner', 'Washing Machine', 'Refrigerator', 'TV', 'Microwave', 'Water Purifier'];
+    const B2B_BRANDS = { 'Air Conditioner': ['Samsung','LG','Voltas','Bluestar','Godrej','Daikin','Hitachi'], 'Washing Machine': ['Godrej','LG','Samsung','IFB','Whirlpool'], 'Refrigerator': ['LG','Samsung','Godrej','Whirlpool','Haier'], 'TV': ['Samsung','LG','Sony','TCL','Vu'], 'Microwave': ['LG','Samsung','IFB','Godrej'], 'Water Purifier': ['Kent','Livpure','AO Smith','Eureka Forbes'] };
+    const B2B_TYPES = ['Repair', 'Installation', 'Demo', 'PMS', 'Uninstallation'];
+    const B2B_SYMPTOMS = { Repair: ['Machine not working','Not cooling / heating','Unusual noise','Leaking water','Error code displayed','Remote not working','Power issue'], Installation: ['New installation','Re-installation','Relocation'], Demo: ['Product demo requested'], PMS: ['Annual maintenance check','Gas top-up','Filter cleaning','General servicing'], Uninstallation: ['Shifting / moving','Return / replacement'] };
+    const setB2b = (k, v) => setB2bFormData(p => ({ ...p, [k]: v }));
+    const canSubmit = b2bFormData.firstName && b2bFormData.phone && b2bFormData.dop && (b2bFormData.serial || (b2bFormData.family && b2bFormData.brand)) && b2bFormData.serviceType && b2bFormData.flat && b2bFormData.city;
+    const resetB2b = () => { setB2bSRSubmitted(false); setB2bSRId(''); setB2bEligibilityChecked(false); setB2bFormData({ firstName: '', lastName: '', phone: '', dop: '', serial: '', family: '', brand: '', productId: '', mfgSerial: '', serviceType: '', symptom: '', flat: '', building: '', street: '', area: '', pincode: '', city: '', state: '', note: '' }); };
+
+    if (b2bSRSubmitted) {
+      const srId = b2bSRId;
+      return (
+        <div className="at-wrapper">
+          <div className="at-header">
+            <button className="at-back-btn" onClick={() => { resetB2b(); setStep('search'); setShowNoCustomerScript(false); }}>‹</button>
+            <span className="at-title">Service Request Created</span>
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, color: '#16a34a' }}>✓</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a2e' }}>Service Request Raised</div>
+            <div style={{ fontSize: 13, color: '#6b7280' }}>SR ID: <strong style={{ color: '#2563eb' }}>{srId}</strong></div>
+            <div style={{ background: '#f0f4ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: '14px 18px', maxWidth: 400, width: '100%', marginTop: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#3730a3', marginBottom: 10, display: 'flex', gap: 8 }}>
+                <span style={{ padding: '2px 8px', borderRadius: 10, background: '#fef3c7', color: '#92400e', fontSize: 11 }}>B2B / PBG</span>
+                <span style={{ padding: '2px 8px', borderRadius: 10, background: '#fee2e2', color: '#991b1b', fontSize: 11 }}>No CRM Record</span>
+              </div>
+              {[['Customer', `${b2bFormData.firstName} ${b2bFormData.lastName}`.trim()], ['Mobile', `+91 ${b2bFormData.phone}`], ['Product', b2bFormData.serial ? `Serial: ${b2bFormData.serial}` : `${b2bFormData.brand} ${b2bFormData.family}`], ['Service Type', b2bFormData.serviceType], ['City', b2bFormData.city]].map(([l, v]) => (
+                <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '4px 0', borderBottom: '1px solid #e0e7ff' }}>
+                  <span style={{ color: '#6b7280' }}>{l}</span>
+                  <strong style={{ color: '#1a1a2e' }}>{v}</strong>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 6, padding: '8px 14px', fontSize: 12, color: '#92400e', maxWidth: 400, width: '100%', textAlign: 'center' }}>
+              Customer registered as <strong>B2B / PBG</strong>. Record saved for future assistance.
+            </div>
+            <button className="kap-search-attach" style={{ marginTop: 8, maxWidth: 220 }} onClick={() => { resetB2b(); setStep('search'); setShowNoCustomerScript(false); }}>BACK TO SEARCH</button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="at-wrapper">
+        <div className="at-header">
+          <button className="at-back-btn" onClick={() => setStep('search')}>‹</button>
+          <span className="at-title">Raise Service Request</span>
+        </div>
+        <div className="at-body">
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 10, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>B2B / PBG Customer</span>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 10, background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }}>No CRM Record Found</span>
+          </div>
+
+          {/* Customer details */}
+          <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 16, marginBottom: 16, background: 'white' }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a2e', marginBottom: 14 }}>Customer details</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div>
+                <label className="kap-label">First Name <span style={{ color: '#dc2626' }}>*</span></label>
+                <input className="kap-input" placeholder="First Name" value={b2bFormData.firstName} onChange={e => setB2b('firstName', e.target.value)} />
+              </div>
+              <div>
+                <label className="kap-label">Last Name</label>
+                <input className="kap-input" placeholder="Last Name" value={b2bFormData.lastName} onChange={e => setB2b('lastName', e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label className="kap-label">Mobile Number <span style={{ color: '#dc2626' }}>*</span></label>
+              <div style={{ display: 'flex' }}>
+                <span style={{ padding: '7px 10px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRight: 'none', borderRadius: '6px 0 0 6px', fontSize: 13, color: '#374151', whiteSpace: 'nowrap' }}>+91</span>
+                <input className="kap-input" style={{ borderRadius: '0 6px 6px 0' }} placeholder="Mobile number" value={b2bFormData.phone} onChange={e => setB2b('phone', e.target.value)} />
+              </div>
+            </div>
+          </div>
+
+          {/* Product details */}
+          <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 16, marginBottom: 16, background: 'white' }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a2e', marginBottom: 14 }}>Product details</div>
+            <div style={{ marginBottom: 12 }}>
+              <label className="kap-label">Date of purchase <span style={{ color: '#dc2626' }}>*</span></label>
+              <input className="kap-input" type="date" value={b2bFormData.dop} onChange={e => setB2b('dop', e.target.value)} />
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <label className="kap-label">MFG Serial Number</label>
+              <input className="kap-input" placeholder="Enter serial number to auto-fill product details" value={b2bFormData.serial} onChange={e => { setB2b('serial', e.target.value); if (e.target.value) { setB2b('family', ''); setB2b('brand', ''); setB2b('productId', ''); setB2b('mfgSerial', ''); } }} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0' }}>
+              <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} /><span style={{ fontSize: 12, color: '#9ca3af' }}>or</span><div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label className="kap-label">Family <span style={{ color: '#dc2626' }}>*</span></label>
+                <select className="kap-input" value={b2bFormData.family} onChange={e => setB2b('family', e.target.value)} disabled={!!b2bFormData.serial}>
+                  <option value="">Select family</option>
+                  {B2B_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="kap-label">Brand <span style={{ color: '#dc2626' }}>*</span></label>
+                <select className="kap-input" value={b2bFormData.brand} onChange={e => setB2b('brand', e.target.value)} disabled={!!b2bFormData.serial || !b2bFormData.family}>
+                  <option value="">Select brand</option>
+                  {(B2B_BRANDS[b2bFormData.family] || []).map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="kap-label">Product ID</label>
+                <input className="kap-input" placeholder="Product ID / SKU" value={b2bFormData.productId} onChange={e => setB2b('productId', e.target.value)} disabled={!!b2bFormData.serial} />
+              </div>
+              <div>
+                <label className="kap-label">MFG Serial Number</label>
+                <input className="kap-input" placeholder="D123456789" value={b2bFormData.mfgSerial} onChange={e => setB2b('mfgSerial', e.target.value)} disabled={!!b2bFormData.serial} />
+              </div>
+            </div>
+          </div>
+
+          {/* Raise service request */}
+          <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 16, marginBottom: 16, background: 'white' }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a2e', marginBottom: 14 }}>Raise service request</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div>
+                <label className="kap-label">Service Type <span style={{ color: '#dc2626' }}>*</span></label>
+                <select className="kap-input" value={b2bFormData.serviceType} onChange={e => { setB2b('serviceType', e.target.value); setB2b('symptom', ''); setB2bEligibilityChecked(false); }}>
+                  <option value="">Select service type</option>
+                  {B2B_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="kap-label">Repair related - Symptoms (IRIS) <span style={{ color: '#dc2626' }}>*</span></label>
+                <select className="kap-input" value={b2bFormData.symptom} onChange={e => setB2b('symptom', e.target.value)} disabled={!b2bFormData.serviceType}>
+                  <option value="">Select symptom</option>
+                  {(B2B_SYMPTOMS[b2bFormData.serviceType] || []).map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+            {b2bFormData.serviceType && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <button onClick={() => setB2bEligibilityChecked(true)} style={{ fontSize: 12, fontWeight: 700, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>Check Eligibility</button>
+                {b2bEligibilityChecked && (
+                  <>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#eff6ff', color: '#1d4ed8' }}>Service Request Type: Paid</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#f0fdf4', color: '#16a34a' }}>Service Charges: ₹300</span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Service address */}
+          <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 16, marginBottom: 16, background: 'white' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1a2e' }}>Service address</div>
+              <button style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#2563eb', background: 'none', border: '1px solid #bfdbfe', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}>✏ Add new address</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {[['flat','Flat No. / Block No.',true],['building','Building',true],['street','Street',true],['area','Area / Landmark',true],['pincode','Pincode',true],['city','City / District / Town',true]].map(([k, l, req]) => (
+                <div key={k}>
+                  <label className="kap-label">{l}{req && <span style={{ color: '#dc2626' }}> *</span>}</label>
+                  <input className="kap-input" placeholder={l} value={b2bFormData[k]} onChange={e => setB2b(k, e.target.value)} />
+                </div>
+              ))}
+              <div>
+                <label className="kap-label">State <span style={{ color: '#dc2626' }}>*</span></label>
+                <select className="kap-input" value={b2bFormData.state} onChange={e => setB2b('state', e.target.value)}>
+                  <option value="">Select state</option>
+                  {['Maharashtra','Gujarat','Rajasthan','Delhi','Karnataka','Tamil Nadu','Haryana','West Bengal','Uttar Pradesh','Telangana','Kerala','Punjab'].map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Service note */}
+          <div style={{ marginBottom: 16 }}>
+            <label className="kap-label">Write Service Note</label>
+            <textarea className="kap-input" rows={3} maxLength={200} placeholder="Describe the service requirement..." value={b2bFormData.note} onChange={e => setB2b('note', e.target.value)} style={{ resize: 'vertical' }} />
+            <div style={{ textAlign: 'right', fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{b2bFormData.note.length}/200</div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, paddingBottom: 24 }}>
+            <button className="kap-search-attach" style={{ flex: 1, opacity: canSubmit ? 1 : 0.5 }} disabled={!canSubmit} onClick={() => {
+              const srId = `SR-B2B-${Math.floor(10000 + Math.random() * 90000)}`;
+              const custCode = `B2B-${Math.floor(10000 + Math.random() * 90000)}`;
+              const newProduct = {
+                id: `b2b-prod-${Date.now()}`, sku: `B2B-SKU-${Date.now()}`,
+                name: b2bFormData.serial ? `Product (Serial: ${b2bFormData.serial})` : `${b2bFormData.brand} ${b2bFormData.family}`,
+                brand: b2bFormData.brand || '—', family: b2bFormData.family || '—',
+                modelNo: b2bFormData.productId || '—',
+                serialNo: b2bFormData.serial || b2bFormData.mfgSerial || '—',
+                purchaseDate: b2bFormData.dop, warranty: 'N/A',
+              };
+              const newOrder = {
+                orderId: `B2B-ORD-${Date.now()}`, date: b2bFormData.dop, status: 'Delivered',
+                products: [newProduct], totalAmount: 0,
+                shipsy: null, invoice: null, returns: null,
+              };
+              const newSO = {
+                id: srId, sapServiceOrderNo: `SAP-B2B-${Math.floor(100000 + Math.random() * 900000)}`,
+                serviceRefId: srId, type: b2bFormData.serviceType, status: 'Created',
+                customer: { name: `${b2bFormData.firstName} ${b2bFormData.lastName}`.trim(), phone: b2bFormData.phone, code: custCode },
+                product: { name: newProduct.name, sku: newProduct.sku, family: newProduct.family },
+                orderId: newOrder.orderId,
+                address: `${b2bFormData.flat}, ${b2bFormData.building}, ${b2bFormData.city}, ${b2bFormData.state}`.replace(/^,\s*|,\s*,/g, ''),
+                symptom: b2bFormData.symptom, note: b2bFormData.note,
+                createdAt: new Date().toISOString(),
+              };
+              const newCust = { name: `${b2bFormData.firstName} ${b2bFormData.lastName}`.trim(), code: custCode, email: '', phone: b2bFormData.phone, isB2B: true };
+              setLiveCustomers(prev => ({ ...prev, [b2bFormData.phone]: newCust }));
+              setLiveCustomerOrders(prev => ({ ...prev, [b2bFormData.phone]: [newOrder] }));
+              setLiveSOs(prev => [...prev, newSO]);
+              setB2bSRId(srId);
+              setB2bSRSubmitted(true);
+            }}>Submit</button>
+            <button style={{ padding: '9px 20px', background: 'white', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer' }} onClick={() => setStep('search')}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ── STEP: search ─────────────────────────────────────────────────────────
   if (step === 'search') {
     return (
@@ -415,7 +669,26 @@ export default function AddTicketFlow({ onBack }) {
                   />
                 </div>
 
-                {searchError && <div style={{ color: '#dc2626', fontSize: 12, marginBottom: 8 }}>{searchError}</div>}
+                {searchError && !showNoCustomerScript && <div style={{ color: '#dc2626', fontSize: 12, marginBottom: 8 }}>{searchError}</div>}
+                {showNoCustomerScript && (
+                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '12px 14px', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 10 }}>
+                      <span style={{ fontSize: 16, color: '#d97706', marginTop: 1 }}>⚠</span>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: '#92400e', marginBottom: 4 }}>No customer record found</div>
+                        <div style={{ fontSize: 12, color: '#78350f', lineHeight: 1.5 }}>
+                          Please share alternative registered mobile number and try again. If the customer does not have an alternative number and wishes to raise a service request, proceed as <strong>B2B / PBG customer</strong>.
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setStep('b2bSR')}
+                      style={{ width: '100%', padding: '8px 0', background: '#f59e0b', color: 'white', fontWeight: 700, fontSize: 13, border: 'none', borderRadius: 6, cursor: 'pointer', letterSpacing: 0.3 }}
+                    >
+                      + Create SR as B2B / PBG Customer
+                    </button>
+                  </div>
+                )}
                 <button className="kap-search-attach" onClick={handleSearch}>SEARCH AND ATTACH</button>
               </div>
             )}
@@ -1454,36 +1727,334 @@ export default function AddTicketFlow({ onBack }) {
                         {trackingOpen ? <ChevronUp size={14} color="#9ca3af" /> : <ChevronDown size={14} color="#9ca3af" />}
                       </div>
                       {trackingOpen && (
-                        <div className="kap-accordion-body">
-                          <div className="kap-fields-grid">
-                            <div className="kap-field-item"><div className="kap-field-label">Status</div><div className="kap-field-value">{order.status}</div></div>
-                            <div className="kap-field-item"><div className="kap-field-label">Date</div><div className="kap-field-value">{order.orderDate}</div></div>
-                            <div className="kap-field-item"><div className="kap-field-label">Is Current</div><div className="kap-field-value">true</div></div>
-                            <div className="kap-field-item"><div className="kap-field-label">Is Passed</div><div className="kap-field-value">false</div></div>
-                          </div>
+                        <div className="kap-accordion-body" style={{ paddingTop: 8 }}>
+                          {order.trackingSteps?.length > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                              {order.trackingSteps.map((step, i) => (
+                                <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                                  {/* Line + dot */}
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 20 }}>
+                                    <div style={{
+                                      width: 16, height: 16, borderRadius: '50%', flexShrink: 0, zIndex: 1,
+                                      background: step.current ? '#2563eb' : step.done ? '#16a34a' : '#e5e7eb',
+                                      border: `2px solid ${step.current ? '#2563eb' : step.done ? '#16a34a' : '#d1d5db'}`,
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    }}>
+                                      {step.done && <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'white' }} />}
+                                    </div>
+                                    {i < order.trackingSteps.length - 1 && (
+                                      <div style={{ width: 2, flexGrow: 1, minHeight: 28, background: step.done ? '#16a34a' : '#e5e7eb', margin: '2px 0' }} />
+                                    )}
+                                  </div>
+                                  {/* Content */}
+                                  <div style={{ paddingBottom: i < order.trackingSteps.length - 1 ? 16 : 4 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                      <span style={{ fontSize: 12.5, fontWeight: 700, color: step.current ? '#2563eb' : step.done ? '#1a1a2e' : '#9ca3af' }}>
+                                        {step.status}
+                                      </span>
+                                      {step.current && (
+                                        <span style={{ fontSize: 10, fontWeight: 700, background: '#dbeafe', color: '#2563eb', padding: '1px 6px', borderRadius: 10 }}>CURRENT</span>
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>{step.date} · {step.time}</div>
+                                    <div style={{ fontSize: 11.5, color: '#374151', marginTop: 2 }}>{step.desc}</div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="kap-fields-grid">
+                              <div className="kap-field-item"><div className="kap-field-label">Status</div><div className="kap-field-value">{order.status}</div></div>
+                              <div className="kap-field-item"><div className="kap-field-label">Date</div><div className="kap-field-value">{order.orderDate}</div></div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
 
-                    {/* Payment + Refund */}
-                    {['Payment Details', 'Refund Details'].map(label => (
-                      <div key={label} className="kap-accordion">
-                        <div className="kap-accordion-hdr" onClick={() => toggleAccordion(`${label}-${order.orderId}`)}>
-                          <span className="kap-accordion-title">{label}</span>
-                          {openAccordions[`${label}-${order.orderId}`] ? <ChevronUp size={14} color="#9ca3af" /> : <ChevronDown size={14} color="#9ca3af" />}
-                        </div>
-                        {openAccordions[`${label}-${order.orderId}`] && (
-                          <div className="kap-accordion-body">
-                            <div style={{ color: '#9ca3af', fontSize: 12, textAlign: 'center' }}>No {label.toLowerCase()} available</div>
+                    {/* Shipsy Status — Story 1 & 2 */}
+                    {(() => {
+                      const shipsyOpen = openAccordions[`shipsy-${order.orderId}`];
+                      const shipsy = order.shipsy;
+                      const statusChip = (status) => {
+                        const m = { Delivered: ['#d1fae5','#065f46'], 'In Transit': ['#dbeafe','#1d4ed8'], 'Out for Delivery': ['#fed7aa','#9a3412'], Returned: ['#fee2e2','#991b1b'] };
+                        const [bg, color] = m[status] || ['#f3f4f6','#374151'];
+                        return <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: bg, color }}>{status}</span>;
+                      };
+                      return (
+                        <div className="kap-accordion">
+                          <div className="kap-accordion-hdr" onClick={() => {
+                            toggleAccordion(`shipsy-${order.orderId}`);
+                            if (!shipsyOpen) logAuditEvent('status_card_viewed', order.orderId);
+                          }}>
+                            <span className="kap-accordion-title" style={{ color: '#0369a1', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Truck size={13} /> Shipsy Status
+                            </span>
+                            {shipsyOpen ? <ChevronUp size={14} color="#9ca3af" /> : <ChevronDown size={14} color="#9ca3af" />}
                           </div>
-                        )}
-                      </div>
-                    ))}
+                          {shipsyOpen && (
+                            <div className="kap-accordion-body">
+                              {!shipsy ? (
+                                <div style={{ color: '#9ca3af', fontSize: 12.5, textAlign: 'center', padding: '8px 0' }}>No shipment found for this order</div>
+                              ) : (
+                                <>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                                    {statusChip(shipsy.currentStatus)}
+                                    <span style={{ fontSize: 11.5, color: '#6b7280' }}>via {shipsy.logisticsPartner}</span>
+                                    <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 'auto' }}>AWB: <strong style={{ fontFamily: 'monospace', color: '#374151' }}>{shipsy.airwayBill}</strong></span>
+                                  </div>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginBottom: 12 }}>
+                                    {[
+                                      ['Last Scan Event', shipsy.lastScanEvent, 'Most recent carrier scan event'],
+                                      ['Last Scan Date & Time', `${shipsy.lastScanDate} · ${shipsy.lastScanTime}`, 'Date and time of the last carrier scan'],
+                                      ['Current Location', shipsy.currentLocation, 'Location as per last carrier scan'],
+                                      ['Expected Delivery', shipsy.expectedDeliveryDate, 'Estimated delivery date from carrier'],
+                                      ['Logistics Partner', shipsy.logisticsPartner, 'Carrier / logistics company'],
+                                      ['Airway Bill / AWB', shipsy.airwayBill, 'Airway bill or tracking number from carrier'],
+                                    ].map(([l, v, tip]) => (
+                                      <div key={l}>
+                                        <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }} title={tip}>{l}</div>
+                                        <div style={{ fontSize: 12.5, color: '#1a1a2e', fontWeight: 500 }}>{v}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8 }}>
+                                    <button
+                                      title="Copy tracking link to clipboard"
+                                      onClick={() => {
+                                        navigator.clipboard?.writeText(shipsy.trackingUrl).catch(() => {});
+                                        setCopiedLink(order.orderId);
+                                        setTimeout(() => setCopiedLink(null), 2000);
+                                        logAuditEvent('tracking_link_copied', order.orderId);
+                                      }}
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: copiedLink === order.orderId ? '#d1fae5' : '#f3f4f6', color: copiedLink === order.orderId ? '#065f46' : '#374151', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                                      {copiedLink === order.orderId ? <CheckCheck size={13} /> : <Copy size={13} />}
+                                      {copiedLink === order.orderId ? 'Copied!' : 'Copy Link'}
+                                    </button>
+                                    <a href={shipsy.trackingUrl} target="_blank" rel="noopener noreferrer"
+                                      onClick={() => logAuditEvent('tracking_link_opened', order.orderId)}
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#0369a1', color: 'white', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>
+                                      <ExternalLink size={13} /> Open in Shipsy
+                                    </a>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Invoice — Story 3 */}
+                    {(() => {
+                      const invoiceOpen = openAccordions[`invoice-${order.orderId}`];
+                      const inv = order.invoice;
+                      return (
+                        <div className="kap-accordion">
+                          <div className="kap-accordion-hdr" onClick={() => {
+                            toggleAccordion(`invoice-${order.orderId}`);
+                            if (!invoiceOpen) logAuditEvent('invoice_section_viewed', order.orderId);
+                          }}>
+                            <span className="kap-accordion-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <FileText size={13} /> Invoice
+                            </span>
+                            {invoiceOpen ? <ChevronUp size={14} color="#9ca3af" /> : <ChevronDown size={14} color="#9ca3af" />}
+                          </div>
+                          {invoiceOpen && (
+                            <div className="kap-accordion-body">
+                              {!inv ? (
+                                <div style={{ color: '#9ca3af', fontSize: 12.5, textAlign: 'center' }}>No invoice data available</div>
+                              ) : (
+                                <>
+                                  <div className="kap-fields-grid">
+                                    {[
+                                      ['Invoice Number', inv.invoiceNumber, false],
+                                      ['Invoice Date', inv.invoiceDate, false],
+                                      ['Invoice Amount', `₹${inv.invoiceAmount.toLocaleString('en-IN')}`, false],
+                                      ['Tax Amount', `₹${inv.taxAmount.toLocaleString('en-IN')}`, false],
+                                      ['Payment Method', inv.paymentMethod, false],
+                                      ['Payment Status', inv.paymentStatus, true],
+                                    ].map(([l, v, chip]) => (
+                                      <div key={l} className="kap-field-item">
+                                        <div className="kap-field-label">{l}</div>
+                                        <div className="kap-field-value">
+                                          {chip ? (
+                                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: v === 'Paid' ? '#d1fae5' : '#fef3c7', color: v === 'Paid' ? '#065f46' : '#92400e' }}>{v}</span>
+                                          ) : v}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div style={{ marginTop: 10 }}>
+                                    <a href={inv.invoiceFileLink} target="_blank" rel="noopener noreferrer"
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#2563eb', fontWeight: 600, textDecoration: 'none', padding: '4px 8px', background: '#eff6ff', borderRadius: 5, border: '1px solid #bfdbfe' }}>
+                                      <FileText size={12} /> View Invoice PDF
+                                    </a>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Returns & Refund — Story 4 */}
+                    {(() => {
+                      const returnsOpen = openAccordions[`returns-${order.orderId}`];
+                      const ret = order.returns;
+                      const pickupColor = (s) => ({ Completed: '#065f46', Scheduled: '#1d4ed8', Attempted: '#92400e', Failed: '#991b1b' }[s] || '#374151');
+                      const refundColor = (s) => ({ Processed: '#065f46', Approved: '#1d4ed8', 'Pending Approval': '#92400e', 'Not Started': '#9ca3af' }[s] || '#374151');
+                      return (
+                        <div className="kap-accordion">
+                          <div className="kap-accordion-hdr" onClick={() => {
+                            toggleAccordion(`returns-${order.orderId}`);
+                            if (!returnsOpen) logAuditEvent('refund_section_viewed', order.orderId);
+                          }}>
+                            <span className="kap-accordion-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <RotateCcw size={13} /> Returns &amp; Refund
+                            </span>
+                            {returnsOpen ? <ChevronUp size={14} color="#9ca3af" /> : <ChevronDown size={14} color="#9ca3af" />}
+                          </div>
+                          {returnsOpen && (
+                            <div className="kap-accordion-body">
+                              {!ret ? (
+                                <div style={{ color: '#9ca3af', fontSize: 12.5, textAlign: 'center' }}>No return or refund initiated for this order</div>
+                              ) : (
+                                <>
+                                  <div style={{ fontSize: 11.5, fontWeight: 700, color: '#374151', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Return Progress</div>
+                                  <div className="kap-fields-grid" style={{ marginBottom: 14 }}>
+                                    <div className="kap-field-item">
+                                      <div className="kap-field-label">Return Initiated</div>
+                                      <div className="kap-field-value">{ret.returnInitiatedDate}</div>
+                                    </div>
+                                    <div className="kap-field-item">
+                                      <div className="kap-field-label">Pickup Status</div>
+                                      <div className="kap-field-value">
+                                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: ret.pickupStatus === 'Completed' ? '#d1fae5' : ret.pickupStatus === 'Failed' ? '#fee2e2' : '#dbeafe', color: pickupColor(ret.pickupStatus) }}>{ret.pickupStatus}</span>
+                                      </div>
+                                    </div>
+                                    <div className="kap-field-item">
+                                      <div className="kap-field-label">Return Tracking ID</div>
+                                      <div className="kap-field-value" style={{ fontFamily: 'monospace', fontSize: 11.5 }}>{ret.returnTrackingId}</div>
+                                    </div>
+                                    <div className="kap-field-item">
+                                      <div className="kap-field-label">Return to Origin (RTO)</div>
+                                      <div className="kap-field-value">{ret.rtoStatus || 'N/A'}</div>
+                                    </div>
+                                  </div>
+                                  {ret.refund && (
+                                    <>
+                                      <div style={{ fontSize: 11.5, fontWeight: 700, color: '#374151', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Refund Progress</div>
+                                      <div className="kap-fields-grid">
+                                        <div className="kap-field-item">
+                                          <div className="kap-field-label">Refund Status</div>
+                                          <div className="kap-field-value">
+                                            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: ret.refund.status === 'Processed' ? '#d1fae5' : ret.refund.status === 'Approved' ? '#dbeafe' : '#fef3c7', color: refundColor(ret.refund.status) }}>{ret.refund.status}</span>
+                                          </div>
+                                        </div>
+                                        <div className="kap-field-item">
+                                          <div className="kap-field-label">Refund Mode</div>
+                                          <div className="kap-field-value">{ret.refund.mode}</div>
+                                        </div>
+                                        <div className="kap-field-item">
+                                          <div className="kap-field-label">Refund Amount</div>
+                                          <div className="kap-field-value" style={{ fontWeight: 700 }}>₹{ret.refund.amount.toLocaleString('en-IN')}</div>
+                                        </div>
+                                        <div className="kap-field-item">
+                                          <div className="kap-field-label">UTR / Reference ID</div>
+                                          <div className="kap-field-value" style={{ fontFamily: 'monospace', fontSize: 11.5 }}>{ret.refund.utr}</div>
+                                        </div>
+                                        <div className="kap-field-item">
+                                          <div className="kap-field-label">ARN</div>
+                                          <div className="kap-field-value" style={{ fontFamily: 'monospace', fontSize: 11.5 }}>{ret.refund.arn || '—'}</div>
+                                        </div>
+                                        <div className="kap-field-item">
+                                          <div className="kap-field-label">Expected Refund Date</div>
+                                          <div className="kap-field-value">{ret.refund.expectedDate}</div>
+                                        </div>
+                                      </div>
+                                    </>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
               </div>
             );
           })}
+
+          {/* Case 2 — Add Product section (shown when on all/orders tab and no product history) */}
+          {(activeOrderTab === 'all' || activeOrderTab === 'orders') && (
+            <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, margin: '12px 0', background: 'white', overflow: 'hidden' }}>
+              {filteredOrders.length === 0 && (
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, margin: 12, padding: '10px 14px', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 16, color: '#d97706', marginTop: 1 }}>⚠</span>
+                  <div style={{ fontSize: 12, color: '#78350f', lineHeight: 1.5 }}>
+                    No product history found. Please share an alternative registered mobile number and try again. If the customer does not have an alternative number, proceed to add a new product and raise a <strong>B2B / PBG service request</strong>.
+                  </div>
+                </div>
+              )}
+              <div
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', cursor: 'pointer', borderTop: filteredOrders.length === 0 ? '1px solid #fde68a' : 'none' }}
+                onClick={() => setAddProductOpen(p => !p)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#2563eb' }}>+ Add Product</span>
+                  <span style={{ fontSize: 11, color: '#6b7280' }}>Create SR for new product (B2B / PBG)</span>
+                </div>
+                <span style={{ fontSize: 16, color: '#6b7280', transform: addProductOpen ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s', display: 'inline-block' }}>+</span>
+              </div>
+              {addProductOpen && (
+                <div style={{ padding: '0 14px 16px', borderTop: '1px solid #e5e7eb' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
+                    <div>
+                      <label className="kap-label">Date of Purchase <span style={{ color: '#dc2626' }}>*</span></label>
+                      <input className="kap-input" type="date" value={newProd.dop} onChange={e => setNewProd(p => ({ ...p, dop: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="kap-label">Family <span style={{ color: '#dc2626' }}>*</span></label>
+                      <select className="kap-input" value={newProd.family} onChange={e => setNewProd(p => ({ ...p, family: e.target.value, brand: '' }))}>
+                        <option value="">Select family</option>
+                        {['Air Conditioner','Washing Machine','Refrigerator','TV','Microwave','Water Purifier'].map(f => <option key={f} value={f}>{f}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="kap-label">Brand <span style={{ color: '#dc2626' }}>*</span></label>
+                      <select className="kap-input" value={newProd.brand} onChange={e => setNewProd(p => ({ ...p, brand: e.target.value }))} disabled={!newProd.family}>
+                        <option value="">Select brand</option>
+                        {({ 'Air Conditioner': ['Samsung','LG','Voltas','Bluestar','Godrej','Daikin','Hitachi'], 'Washing Machine': ['Godrej','LG','Samsung','IFB','Whirlpool'], 'Refrigerator': ['LG','Samsung','Godrej','Whirlpool','Haier'], 'TV': ['Samsung','LG','Sony','TCL','Vu'], 'Microwave': ['LG','Samsung','IFB','Godrej'], 'Water Purifier': ['Kent','Livpure','AO Smith','Eureka Forbes'] }[newProd.family] || []).map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="kap-label">Product ID</label>
+                      <input className="kap-input" placeholder="Product ID / SKU" value={newProd.productId} onChange={e => setNewProd(p => ({ ...p, productId: e.target.value }))} />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label className="kap-label">MFG Serial Number</label>
+                      <input className="kap-input" placeholder="e.g. D123456789" value={newProd.mfgSerial} onChange={e => setNewProd(p => ({ ...p, mfgSerial: e.target.value }))} />
+                    </div>
+                  </div>
+                  <button
+                    style={{ marginTop: 14, width: '100%', padding: '9px 0', background: newProd.dop && newProd.family && newProd.brand ? '#2563eb' : '#9ca3af', color: 'white', fontWeight: 700, fontSize: 13, border: 'none', borderRadius: 6, cursor: newProd.dop && newProd.family && newProd.brand ? 'pointer' : 'not-allowed', letterSpacing: 0.3 }}
+                    disabled={!newProd.dop || !newProd.family || !newProd.brand}
+                    onClick={() => {
+                      const syntheticProduct = { id: `SYN-${Date.now()}`, name: `${newProd.brand} ${newProd.family}`, brand: newProd.brand, family: newProd.family, modelNo: newProd.productId || '—', serialNo: newProd.mfgSerial || '—', purchaseDate: newProd.dop, warranty: 'N/A' };
+                      const syntheticOrder = { orderId: `B2B-${Date.now()}`, date: newProd.dop, status: 'New', products: [syntheticProduct], totalAmount: 0, shipsy: null, invoice: null, returns: null };
+                      handleCreateSRForProduct(syntheticOrder, syntheticProduct);
+                    }}
+                  >
+                    Create Service Request
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Add Ticket Details section */}
           <div className="kap-section" style={{ borderBottom: 'none', marginTop: 8 }}>
