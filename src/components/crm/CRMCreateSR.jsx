@@ -36,7 +36,8 @@ export default function CRMCreateSR({ order, product: prefillProduct, customer, 
   const handleCheckEligibility = () => {
     if (!serviceType) return;
     const warrantyStatus = prod?.warranty || 'Out of Warranty';
-    const isPaid = serviceType === 'Repair' && warrantyStatus === 'Out of Warranty';
+    const REPAIR_CODES = ['ZRV', 'ZGR', 'ZGD', 'ZRL'];
+    const isPaid = REPAIR_CODES.includes(serviceType) && warrantyStatus === 'Out of Warranty';
     const charges = isPaid ? 499 : 0;
     setEligibility({ type: isPaid ? 'Paid' : 'Free', charges, warranty: warrantyStatus });
     setPayLink(null);
@@ -69,7 +70,7 @@ export default function CRMCreateSR({ order, product: prefillProduct, customer, 
                 ['Kapture Ticket', ticketId, '#2563eb'],
                 ['Customer', customer?.name || prod?.brand, ''],
                 ['Product', prod?.name, ''],
-                ['Service Type', serviceType, ''],
+                ['Service Type', serviceType ? `${serviceType} – ${serviceTypes.find(t => t.code === serviceType)?.label || ''}` : '—', ''],
                 ['Eligibility', eligibility ? `${eligibility.type}${eligibility.charges > 0 ? ` (₹${eligibility.charges})` : ''}` : '—', eligibility?.type === 'Free' ? '#16a34a' : '#f97316'],
                 ['Appointment', `${appointDate} · ${appointSlot}`, ''],
               ].map(([l, v, c]) => v && (
@@ -122,7 +123,7 @@ export default function CRMCreateSR({ order, product: prefillProduct, customer, 
                 <label className="form-label">Service Type <span style={{ color: '#dc2626' }}>*</span></label>
                 <select className="form-select" value={serviceType} onChange={e => { setServiceType(e.target.value); setEligibility(null); }}>
                   <option value="">Select type</option>
-                  {serviceTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                  {serviceTypes.map(t => <option key={t.code} value={t.code}>{t.code} – {t.label}</option>)}
                 </select>
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>

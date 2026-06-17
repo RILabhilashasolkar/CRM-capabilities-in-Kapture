@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronUp, ChevronDown, Search, User, Truck, Calendar, ShoppingBag, Upload, Folder, X, Wrench, AlertCircle, Package, MapPin, Shield, ArrowLeft, Clock, ExternalLink, Copy, CheckCheck, FileText, RotateCcw } from 'lucide-react';
-import { customers, customerOrders, serviceOrders, complaints, tickets } from '../../data/dummyData';
+import { customers, customerOrders, serviceOrders, complaints, tickets, serviceTypes } from '../../data/dummyData';
 import CRMCreateSR from '../crm/CRMCreateSR';
 import CRMRaiseComplaint from '../crm/CRMRaiseComplaint';
 
@@ -376,8 +376,7 @@ export default function AddTicketFlow({ onBack }) {
   if (step === 'b2bSR') {
     const B2B_FAMILIES = ['Air Conditioner', 'Washing Machine', 'Refrigerator', 'TV', 'Microwave', 'Water Purifier'];
     const B2B_BRANDS = { 'Air Conditioner': ['Samsung','LG','Voltas','Bluestar','Godrej','Daikin','Hitachi'], 'Washing Machine': ['Godrej','LG','Samsung','IFB','Whirlpool'], 'Refrigerator': ['LG','Samsung','Godrej','Whirlpool','Haier'], 'TV': ['Samsung','LG','Sony','TCL','Vu'], 'Microwave': ['LG','Samsung','IFB','Godrej'], 'Water Purifier': ['Kent','Livpure','AO Smith','Eureka Forbes'] };
-    const B2B_TYPES = ['Repair', 'Installation', 'Demo', 'PMS', 'Uninstallation'];
-    const B2B_SYMPTOMS = { Repair: ['Machine not working','Not cooling / heating','Unusual noise','Leaking water','Error code displayed','Remote not working','Power issue'], Installation: ['New installation','Re-installation','Relocation'], Demo: ['Product demo requested'], PMS: ['Annual maintenance check','Gas top-up','Filter cleaning','General servicing'], Uninstallation: ['Shifting / moving','Return / replacement'] };
+    const B2B_SYMPTOMS = { ZRV: ['Machine not working','Not cooling / heating','Unusual noise','Leaking water','Error code displayed','Remote not working','Power issue'], ZGR: ['Machine not working','Unusual noise','Error code displayed','Power issue'], ZGD: ['Distribution fault','Unit not working'], ZRL: ['Labour only repair'], ZSR: ['New installation','Standard setup'], ZNR: ['Non-standard installation required'], ZIR: ['Installation request'], ZRN: ['Re-installation','Relocation'], ZIT: ['resQ installation'], ZGI: ['GT installation required'], ZGU: ['GT uninstallation required'], ZUR: ['Shifting / moving','Return / replacement'], ZGM: ['Product demo'], ZDR: ['Demo requested'], ZDM: ['Home delivery demo'], ZDI: ['Dead on arrival inspection'], ZEM: ['Ecommerce product install'], ZRQ: ['ResQ GT PMS service'], ZGP: ['GT PMS service'] };
     const setB2b = (k, v) => setB2bFormData(p => ({ ...p, [k]: v }));
     const canSubmit = b2bFormData.firstName && b2bFormData.phone && b2bFormData.dop && (b2bFormData.serial || (b2bFormData.family && b2bFormData.brand)) && b2bFormData.serviceType && b2bFormData.flat && b2bFormData.city;
     const resetB2b = () => { setB2bSRSubmitted(false); setB2bSRId(''); setB2bEligibilityChecked(false); setB2bFormData({ firstName: '', lastName: '', phone: '', dop: '', serial: '', family: '', brand: '', productId: '', mfgSerial: '', serviceType: '', symptom: '', flat: '', building: '', street: '', area: '', pincode: '', city: '', state: '', note: '' }); };
@@ -399,7 +398,7 @@ export default function AddTicketFlow({ onBack }) {
                 <span style={{ padding: '2px 8px', borderRadius: 10, background: '#fef3c7', color: '#92400e', fontSize: 11 }}>B2B / PBG</span>
                 <span style={{ padding: '2px 8px', borderRadius: 10, background: '#fee2e2', color: '#991b1b', fontSize: 11 }}>No CRM Record</span>
               </div>
-              {[['Customer', `${b2bFormData.firstName} ${b2bFormData.lastName}`.trim()], ['Mobile', `+91 ${b2bFormData.phone}`], ['Product', b2bFormData.serial ? `Serial: ${b2bFormData.serial}` : `${b2bFormData.brand} ${b2bFormData.family}`], ['Service Type', b2bFormData.serviceType], ['City', b2bFormData.city]].map(([l, v]) => (
+              {[['Customer', `${b2bFormData.firstName} ${b2bFormData.lastName}`.trim()], ['Mobile', `+91 ${b2bFormData.phone}`], ['Product', b2bFormData.serial ? `Serial: ${b2bFormData.serial}` : `${b2bFormData.brand} ${b2bFormData.family}`], ['Service Type', b2bFormData.serviceType ? `${b2bFormData.serviceType} – ${serviceTypes.find(t => t.code === b2bFormData.serviceType)?.label || ''}` : '—'], ['City', b2bFormData.city]].map(([l, v]) => (
                 <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '4px 0', borderBottom: '1px solid #e0e7ff' }}>
                   <span style={{ color: '#6b7280' }}>{l}</span>
                   <strong style={{ color: '#1a1a2e' }}>{v}</strong>
@@ -497,7 +496,7 @@ export default function AddTicketFlow({ onBack }) {
                 <label className="kap-label">Service Type <span style={{ color: '#dc2626' }}>*</span></label>
                 <select className="kap-input" value={b2bFormData.serviceType} onChange={e => { setB2b('serviceType', e.target.value); setB2b('symptom', ''); setB2bEligibilityChecked(false); }}>
                   <option value="">Select service type</option>
-                  {B2B_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  {serviceTypes.map(t => <option key={t.code} value={t.code}>{t.code} – {t.label}</option>)}
                 </select>
               </div>
               <div>
