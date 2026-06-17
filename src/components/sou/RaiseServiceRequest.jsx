@@ -88,10 +88,13 @@ export default function RaiseServiceRequest({ onBack, onSuccess }) {
   const handleCheckEligibility = () => {
     const effectiveSerial = resolvedProduct?.serialNo || serialInput;
     const product = resolvedProduct;
-    if (serviceType === 'Repair' || serviceType === 'Preventive Maintenance (PMS)') {
+    const REPAIR_CODES = ['ZRV', 'ZGR', 'ZGD', 'ZRL'];
+    const INSTALL_CODES = ['ZSR', 'ZNR', 'ZIR', 'ZRN', 'ZIT', 'ZGI', 'ZEM'];
+    const PMS_CODES = ['ZRQ', 'ZGP'];
+    if (REPAIR_CODES.includes(serviceType) || PMS_CODES.includes(serviceType)) {
       if (product?.warranty === 'Within Warranty') { setRequestType('Free'); setServiceCharge(0); }
       else { setRequestType('Paid'); setServiceCharge(300); }
-    } else if (serviceType === 'Installation') {
+    } else if (INSTALL_CODES.includes(serviceType)) {
       const installationType = product?.installationType || 'Paid';
       if (installationType === 'Free') { setRequestType('Free'); setServiceCharge(0); }
       else { setRequestType('Paid'); setServiceCharge(product?.installationCharges || 300); }
@@ -104,7 +107,7 @@ export default function RaiseServiceRequest({ onBack, onSuccess }) {
   const handleSubmit = () => setSubmitted(true);
 
   const productInScope = resolvedProduct;
-  const showIris = serviceType === 'Repair' || serviceType === 'Preventive Maintenance (PMS)';
+  const showIris = ['ZRV','ZGR','ZGD','ZRL','ZRQ','ZGP'].includes(serviceType);
 
   if (submitted) {
     return (
@@ -123,7 +126,7 @@ export default function RaiseServiceRequest({ onBack, onSuccess }) {
                 ['Customer', `${firstName} ${lastName}`, ''],
                 ['Phone', phone, ''],
                 ['Product', resolvedProduct?.name || manualProductId || 'N/A', ''],
-                ['Service Type', serviceType, ''],
+                ['Service Type', serviceType ? `${serviceType} – ${serviceTypes.find(t => t.code === serviceType)?.label || ''}` : '—', ''],
                 ['Request Type', requestType, requestType === 'Paid' ? 'text-orange-600' : 'text-green-600'],
                 ...(serviceCharge > 0 ? [['Service Charges', `₹${serviceCharge}`, 'text-orange-600']] : []),
               ].map(([l, v, cls]) => (
@@ -304,7 +307,7 @@ export default function RaiseServiceRequest({ onBack, onSuccess }) {
                   <div className="select-clearable">
                     <select className="form-select" value={serviceType} onChange={e => { setServiceType(e.target.value); setEligibilityChecked(false); setSymptom(''); }}>
                       <option value="">Select Service Type</option>
-                      {serviceTypes.map(s => <option key={s} value={s}>{s}</option>)}
+                      {serviceTypes.map(s => <option key={s.code} value={s.code}>{s.code} – {s.label}</option>)}
                     </select>
                     {serviceType && <button className="clear-btn" onClick={() => { setServiceType(''); setEligibilityChecked(false); }}>×</button>}
                   </div>
