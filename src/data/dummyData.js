@@ -30,6 +30,55 @@ export const productsBySerial = {
 export const customerOrders = {
   '9689808472': [
     {
+      // Nucleus API format — in-transit (pickup_completed, no out_for_delivery yet)
+      orderId: 'RD6A2BB43F0E6BB1A23F', orderDate: '12-06-2026', status: 'In Transit', amount: 12499,
+      _nucleusFormat: true,
+      _nucleusOrder: {
+        order_id: 'RD6A2BB43F0E6BB1A23F',
+        order_date: '2026-06-12T07:24:47.869Z',
+        status: 'PAYMENT_SUCCESS',
+        total_amount: 12499,
+        channel: 'RD',
+        customer_name: 'Abhilash Asolkar',
+        customer_mobile: '9689808472',
+        customer_email: 'abhilash.asolkar@jiml.org',
+        customer_id: '25400001',
+        shipping_address: '{"flat_no":"Flat 402","building_name":"Sunrise Apts","street":"Yari Road","city":"Mumbai","state":"Maharashtra","pincode":"400061"}',
+        // Real meta from nucleus_orders JSON (order RD6A2BB43F0E6BB1A23F)
+        meta: JSON.stringify({
+          ship_type: null,
+          shipments: [{
+            promise: { formatted: { min: '16 Jun, Tuesday', max: '16 Jun, Tuesday' } },
+            display_message: 'Delivery by 16th Jun',
+            articles: [{
+              sku: '494743571',
+              product_name: 'POCO C85x 5G 64 GB, 4 GB RAM, Green, Mobile Phone',
+              image_url: '',
+              quantity: 1,
+              prices: { esp: 12499, mrp: 20999, instant_discount: 624.95 },
+            }],
+            logistics_meta: { account_info: { name: 'delhivery_surface' } },
+            fulfillment_meta: { fulfillment_id: 'SLKO', meta: { store_type: 'DC' }, seller_name: 'Reliance Retail' },
+          }],
+          order_prices: { order_type: 'PREPAID' },
+          payment_methods: [{ payment_desc: 'Credit Card', payment_amt: 11874.05 }, { payment_desc: 'Instant Discount', payment_amt: 624.95 }],
+          jiomart_order_id: 'RD6A2BB43F0E6BB1A23F',
+        }),
+      },
+      _shipsyEvents: [
+        // accept event
+        { event_payload: JSON.stringify({ reference_number: 'DL9982301456', courier_partner_reference_number: 'DL9982301456', customer_reference_number: 'RD6A2BB43F0E6BB1A23F', order_number: 'RD6A2BB43F0E6BB1A23F', consignment_type: 'FORWARD', hub_code: 'BOM-DC-01', worker_code: null, worker_phone: null, failure_reason: '', failure_reason_code: '', event: 'accept', sub_event: null, receiver_name: null, lat: null, lng: null, courier_partner: 'delhivery_surface', courier_account: 'delhivery_surface', carrier_location: 'Mumbai', carrier_location_code: 'BOM-DC-01', event_time: 1781579400000, rescheduled_date: null, estimated_delivery_date: '2026-06-16', service_type: 'EXPRESS' }) },
+        // pickup_completed event
+        { event_payload: JSON.stringify({ reference_number: 'DL9982301456', courier_partner_reference_number: 'DL9982301456', customer_reference_number: 'RD6A2BB43F0E6BB1A23F', order_number: 'RD6A2BB43F0E6BB1A23F', consignment_type: 'FORWARD', hub_code: 'BOM-DC-01', worker_code: null, worker_phone: null, failure_reason: '', failure_reason_code: '', event: 'pickup_completed', sub_event: null, receiver_name: null, lat: null, lng: null, courier_partner: 'delhivery_surface', courier_account: 'delhivery_surface', carrier_location: 'Mumbai', carrier_location_code: 'BOM-DC-01', event_time: 1781583000000, rescheduled_date: null, estimated_delivery_date: '2026-06-16', service_type: 'EXPRESS' }) },
+      ],
+      products: [
+        { sku: '494743571', name: 'POCO C85x 5G 64 GB, 4 GB RAM, Green, Mobile Phone', qty: 1, price: 12499, serialNo: 'N/A', objectId: 'N/A', family: 'Mobile', brand: 'POCO', brandType: 'Authorised', hdGng: 'HD', warranty: 'Within Warranty', warrantyExpiry: '11-06-2027', warrantyDetails: '1 year manufacturer warranty', installationType: 'N/A', installationCharges: 0, installationStatus: 'N/A', upcomingPMS: 'N/A' },
+      ],
+      shipsy: null,
+      invoice: null,
+      returns: null,
+    },
+    {
       orderId: 'B63515626500726', orderDate: '06-04-2026', status: 'Delivered', amount: 92416.98,
       trackingSteps: [
         { status: 'Order Placed', date: '03-04-2026', time: '10:22 AM', done: true, current: false, desc: 'Order placed successfully on JioMart' },
@@ -64,6 +113,56 @@ export const customerOrders = {
     },
   ],
   '9916265181': [
+    {
+      // Nucleus API format — tracking computed via shipsyUtils.buildFromNucleus()
+      orderId: 'TZZZ16326500751', orderDate: '12-06-2026', status: 'Delivered', amount: 8499,
+      _nucleusFormat: true,
+      _nucleusOrder: {
+        order_id: 'TZZZ16326500751',
+        order_date: '2026-06-12T04:00:00.000Z',
+        status: 'PAYMENT_SUCCESS',
+        total_amount: 8499,
+        channel: 'RD',
+        customer_name: 'Gajendiran Perumal',
+        customer_mobile: '9916265181',
+        customer_email: 'gajendiran.p@email.com',
+        customer_id: '40299001',
+        shipping_address: '{"flat_no":"112 A","building_name":"724","street":"11th Road, Khar West","city":"Navi Mumbai","state":"Maharashtra","pincode":"400006"}',
+        meta: JSON.stringify({
+          ship_type: null,
+          shipments: [{
+            promise: { formatted: { min: '12 Jun', max: '13 Jun' } },
+            display_message: 'Delivered on 12th Jun',
+            articles: [{
+              sku: '494606689',
+              product_name: 'Samsung Galaxy M35 5G (Thunder Black, 128GB, 6GB RAM)',
+              image_url: '',
+              quantity: 1,
+              prices: { esp: 8499, mrp: 12999 },
+            }],
+            logistics_meta: { account_info: { name: 'qwik_surface' } },
+            fulfillment_meta: { fulfillment_id: 'RAJ011', meta: { store_type: 'DC' }, seller_name: 'Reliance Retail' },
+          }],
+          order_prices: { order_type: 'PREPAID' },
+          payment_methods: [{ payment_desc: 'UPI', payment_amt: 8499 }],
+          jiomart_order_id: 'TZZZ16326500751',
+        }),
+      },
+      _shipsyEvents: [
+        // accept — Hub accept (synthetic, slightly before pickup)
+        { event_payload: JSON.stringify({ reference_number: '4325491154', courier_partner_reference_number: null, customer_reference_number: 'TZZZ16326500751', order_number: 'TZZZ16326500751', consignment_type: 'FORWARD', hub_code: 'RAJ011', worker_code: 'RAVAL_6639', worker_phone: null, failure_reason: '', failure_reason_code: '', event: 'accept', sub_event: null, receiver_name: null, lat: null, lng: null, courier_partner: 'SELF', courier_account: 'SELF', carrier_location: null, carrier_location_code: null, event_time: 1781236200000, rescheduled_date: null, estimated_delivery_date: null, service_type: 'EXPRESS' }) },
+        // pickup_completed
+        { event_payload: JSON.stringify({ reference_number: '4325491154', courier_partner_reference_number: null, customer_reference_number: 'TZZZ16326500751', order_number: 'TZZZ16326500751', consignment_type: 'FORWARD', hub_code: 'RAJ011', worker_code: 'RAVAL_6639', worker_phone: null, failure_reason: '', failure_reason_code: '', event: 'pickup_completed', sub_event: null, receiver_name: null, lat: null, lng: null, courier_partner: 'SELF', courier_account: 'SELF', carrier_location: null, carrier_location_code: null, event_time: 1781239800000, rescheduled_date: null, estimated_delivery_date: null, service_type: 'EXPRESS' }) },
+        // delivered — real event from nucleus_event_logs id:72498010
+        { event_payload: JSON.stringify({ reference_number: '4325491154', courier_partner_reference_number: null, customer_reference_number: 'TZZZ16326500751', order_number: 'TZZZ16326500751', consignment_type: 'FORWARD', hub_code: 'RAJ011', worker_code: 'RAVAL_6639', worker_phone: null, failure_reason: '', failure_reason_code: '', event: 'delivered', sub_event: null, receiver_name: null, lat: null, lng: null, courier_partner: 'SELF', courier_account: 'SELF', carrier_location: null, carrier_location_code: null, event_time: 1781250763289, rescheduled_date: null, estimated_delivery_date: null, service_type: 'EXPRESS' }) },
+      ],
+      products: [
+        { sku: '494606689', name: 'Samsung Galaxy M35 5G (Thunder Black, 128GB, 6GB RAM)', qty: 1, price: 8499, serialNo: 'N/A', objectId: 'N/A', family: 'Mobile', brand: 'Samsung', brandType: 'Authorised', hdGng: 'HD', warranty: 'Within Warranty', warrantyExpiry: '11-06-2027', warrantyDetails: '1 year manufacturer warranty', installationType: 'N/A', installationCharges: 0, installationStatus: 'N/A', upcomingPMS: 'N/A' },
+      ],
+      shipsy: null,
+      invoice: { invoiceNumber: 'INV-2026-TZZZ1632', invoiceDate: '12-06-2026', invoiceAmount: 8499, taxAmount: 772.64, paymentMethod: 'UPI', paymentStatus: 'Paid', invoiceFileLink: '#' },
+      returns: null,
+    },
     {
       orderId: 'ORD-20240402-001', orderDate: '02-04-2024', status: 'Delivered', amount: 28500.00,
       trackingSteps: [

@@ -3,6 +3,7 @@ import { ChevronUp, ChevronDown, Search, User, Truck, Calendar, ShoppingBag, Upl
 import { customers, customerOrders, serviceOrders, complaints, tickets, serviceTypes } from '../../data/dummyData';
 import CRMCreateSR from '../crm/CRMCreateSR';
 import CRMRaiseComplaint from '../crm/CRMRaiseComplaint';
+import { buildFromNucleus } from '../../utils/shipsyUtils';
 
 // Folder tree matching real Kapture
 const FOLDER_TREE = {
@@ -1539,6 +1540,11 @@ export default function AddTicketFlow({ onBack }) {
             const trackingOpen = openAccordions[`tracking-${order.orderId}`];
             const soSectionOpen = openAccordions[`so-${order.orderId}`] !== false;
 
+            // Nucleus API format: compute tracking + shipsy from real field mapping
+            const _nucleusData = order._nucleusFormat ? buildFromNucleus(order) : null;
+            const orderTrackingSteps = _nucleusData?.trackingSteps ?? order.trackingSteps;
+            const orderShipsy = _nucleusData?.shipsy ?? order.shipsy;
+
             // 2a/2b/4: All SOs for this order (including newly created)
             const orderSOs = customerSOs.filter(so => so.orderId === order.orderId);
 
@@ -1727,46 +1733,51 @@ export default function AddTicketFlow({ onBack }) {
                       </div>
                       {trackingOpen && (
                         <div className="kap-accordion-body" style={{ paddingTop: 8 }}>
-                          {order.trackingSteps?.length > 0 ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                              {order.trackingSteps.map((step, i) => (
-                                <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                                  {/* Line + dot */}
-                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 20 }}>
-                                    <div style={{
-                                      width: 16, height: 16, borderRadius: '50%', flexShrink: 0, zIndex: 1,
-                                      background: step.current ? '#2563eb' : step.done ? '#16a34a' : '#e5e7eb',
-                                      border: `2px solid ${step.current ? '#2563eb' : step.done ? '#16a34a' : '#d1d5db'}`,
-                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    }}>
-                                      {step.done && <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'white' }} />}
-                                    </div>
-                                    {i < order.trackingSteps.length - 1 && (
-                                      <div style={{ width: 2, flexGrow: 1, minHeight: 28, background: step.done ? '#16a34a' : '#e5e7eb', margin: '2px 0' }} />
-                                    )}
-                                  </div>
-                                  {/* Content */}
-                                  <div style={{ paddingBottom: i < order.trackingSteps.length - 1 ? 16 : 4 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                      <span style={{ fontSize: 12.5, fontWeight: 700, color: step.current ? '#2563eb' : step.done ? '#1a1a2e' : '#9ca3af' }}>
-                                        {step.status}
-                                      </span>
-                                      {step.current && (
-                                        <span style={{ fontSize: 10, fontWeight: 700, background: '#dbeafe', color: '#2563eb', padding: '1px 6px', borderRadius: 10 }}>CURRENT</span>
+                          {(() => {
+                            const visibleSteps = (orderTrackingSteps || []).filter(s =>
+                              s.done || s.current || (s.date && s.date !== '—')
+                            );
+                            return visibleSteps.length > 0 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                                {visibleSteps.map((step, i) => (
+                                  <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 20 }}>
+                                      <div style={{
+                                        width: 16, height: 16, borderRadius: '50%', flexShrink: 0, zIndex: 1,
+                                        background: step.current ? '#2563eb' : step.done ? '#16a34a' : '#e5e7eb',
+                                        border: `2px solid ${step.current ? '#2563eb' : step.done ? '#16a34a' : '#d1d5db'}`,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      }}>
+                                        {step.done && <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'white' }} />}
+                                      </div>
+                                      {i < visibleSteps.length - 1 && (
+                                        <div style={{ width: 2, flexGrow: 1, minHeight: 28, background: step.done ? '#16a34a' : '#e5e7eb', margin: '2px 0' }} />
                                       )}
                                     </div>
-                                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>{step.date} · {step.time}</div>
-                                    <div style={{ fontSize: 11.5, color: '#374151', marginTop: 2 }}>{step.desc}</div>
+                                    <div style={{ paddingBottom: i < visibleSteps.length - 1 ? 16 : 4 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: 12.5, fontWeight: 700, color: step.current ? '#2563eb' : step.done ? '#1a1a2e' : '#374151' }}>
+                                          {step.status}
+                                        </span>
+                                        {step.current && (
+                                          <span style={{ fontSize: 10, fontWeight: 700, background: '#dbeafe', color: '#2563eb', padding: '1px 6px', borderRadius: 10 }}>CURRENT</span>
+                                        )}
+                                      </div>
+                                      <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>
+                                        {step.date}{step.time ? ` · ${step.time}` : ''}
+                                      </div>
+                                      <div style={{ fontSize: 11.5, color: '#374151', marginTop: 2 }}>{step.desc}</div>
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="kap-fields-grid">
-                              <div className="kap-field-item"><div className="kap-field-label">Status</div><div className="kap-field-value">{order.status}</div></div>
-                              <div className="kap-field-item"><div className="kap-field-label">Date</div><div className="kap-field-value">{order.orderDate}</div></div>
-                            </div>
-                          )}
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="kap-fields-grid">
+                                <div className="kap-field-item"><div className="kap-field-label">Status</div><div className="kap-field-value">{order.status}</div></div>
+                                <div className="kap-field-item"><div className="kap-field-label">Date</div><div className="kap-field-value">{order.orderDate}</div></div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>
@@ -1774,11 +1785,13 @@ export default function AddTicketFlow({ onBack }) {
                     {/* Shipsy Status — Story 1 & 2 */}
                     {(() => {
                       const shipsyOpen = openAccordions[`shipsy-${order.orderId}`];
-                      const shipsy = order.shipsy;
-                      const statusChip = (status) => {
-                        const m = { Delivered: ['#d1fae5','#065f46'], 'In Transit': ['#dbeafe','#1d4ed8'], 'Out for Delivery': ['#fed7aa','#9a3412'], Returned: ['#fee2e2','#991b1b'] };
-                        const [bg, color] = m[status] || ['#f3f4f6','#374151'];
-                        return <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: bg, color }}>{status}</span>;
+                      const shipsy = orderShipsy;
+                      const statusChip = (s) => {
+                        // Support both legacy string status and nucleus-computed { label, bg, color }
+                        const bg = s?.statusBg || ({ Delivered: '#d1fae5', 'In Transit': '#dbeafe', 'Out for Delivery': '#fed7aa', Shipped: '#dbeafe', Attempted: '#ffedd5', Returned: '#fee2e2', Returning: '#ffedd5' }[s?.currentStatus || s] || '#f3f4f6');
+                        const color = s?.statusColor || ({ Delivered: '#065f46', 'In Transit': '#1d4ed8', 'Out for Delivery': '#9a3412', Shipped: '#1d4ed8', Attempted: '#9a3412', Returned: '#991b1b', Returning: '#9a3412' }[s?.currentStatus || s] || '#374151');
+                        const label = s?.currentStatus || s;
+                        return <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: bg, color }}>{label}</span>;
                       };
                       return (
                         <div className="kap-accordion">
@@ -1798,44 +1811,58 @@ export default function AddTicketFlow({ onBack }) {
                               ) : (
                                 <>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                                    {statusChip(shipsy.currentStatus)}
+                                    {statusChip(shipsy)}
                                     <span style={{ fontSize: 11.5, color: '#6b7280' }}>via {shipsy.logisticsPartner}</span>
                                     <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 'auto' }}>AWB: <strong style={{ fontFamily: 'monospace', color: '#374151' }}>{shipsy.airwayBill}</strong></span>
                                   </div>
-                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginBottom: 12 }}>
-                                    {[
-                                      ['Last Scan Event', shipsy.lastScanEvent, 'Most recent carrier scan event'],
-                                      ['Last Scan Date & Time', `${shipsy.lastScanDate} · ${shipsy.lastScanTime}`, 'Date and time of the last carrier scan'],
-                                      ['Current Location', shipsy.currentLocation, 'Location as per last carrier scan'],
-                                      ['Expected Delivery', shipsy.expectedDeliveryDate, 'Estimated delivery date from carrier'],
-                                      ['Logistics Partner', shipsy.logisticsPartner, 'Carrier / logistics company'],
-                                      ['Airway Bill / AWB', shipsy.airwayBill, 'Airway bill or tracking number from carrier'],
-                                    ].map(([l, v, tip]) => (
-                                      <div key={l}>
-                                        <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }} title={tip}>{l}</div>
-                                        <div style={{ fontSize: 12.5, color: '#1a1a2e', fontWeight: 500 }}>{v}</div>
+                                  {(() => {
+                                    const fields = [
+                                      ['Last Scan Event',       shipsy.lastScanEvent,       'Most recent carrier scan event'],
+                                      ['Last Scan Date & Time', shipsy.lastScanDate ? `${shipsy.lastScanDate}${shipsy.lastScanTime ? ' · ' + shipsy.lastScanTime : ''}` : null, 'Date and time of the last carrier scan'],
+                                      ['Current Location',      shipsy.currentLocation,     'Location as per last carrier scan'],
+                                      ['Expected Delivery',     shipsy.expectedDeliveryDate,'Estimated delivery date from carrier'],
+                                      ['Logistics Partner',     shipsy.logisticsPartner,    'Carrier / logistics company'],
+                                      ['Airway Bill / AWB',     shipsy.airwayBill,          'Tracking number from carrier'],
+                                      ['Fleet / Courier',       shipsy.fleetType,           'SELF = Reliance own fleet; others = 3PL'],
+                                      ['Hub Code',              shipsy.hubCode,             'Shipsy hub / DC code for last scan'],
+                                      ['Consignment Type',      shipsy.consignmentType,     'FORWARD = delivery; RTO = return to origin'],
+                                      ['Service Type',          shipsy.serviceType,         'Shipsy service level'],
+                                      ['Delivery Agent Code',   shipsy.deliveryAgentCode,   'Shipsy agent / rider ID'],
+                                      ['Failure Reason',        shipsy.failureReason,       'Reason delivery attempt failed'],
+                                      ['Received By',           shipsy.receivedBy,          'Person who received the package'],
+                                    ].filter(([, v]) => v);
+                                    return (
+                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginBottom: 12 }}>
+                                        {fields.map(([l, v, tip]) => (
+                                          <div key={l}>
+                                            <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 2 }} title={tip}>{l}</div>
+                                            <div style={{ fontSize: 12.5, color: '#1a1a2e', fontWeight: 500 }}>{v}</div>
+                                          </div>
+                                        ))}
                                       </div>
-                                    ))}
-                                  </div>
-                                  <div style={{ display: 'flex', gap: 8 }}>
-                                    <button
-                                      title="Copy tracking link to clipboard"
-                                      onClick={() => {
-                                        navigator.clipboard?.writeText(shipsy.trackingUrl).catch(() => {});
-                                        setCopiedLink(order.orderId);
-                                        setTimeout(() => setCopiedLink(null), 2000);
-                                        logAuditEvent('tracking_link_copied', order.orderId);
-                                      }}
-                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: copiedLink === order.orderId ? '#d1fae5' : '#f3f4f6', color: copiedLink === order.orderId ? '#065f46' : '#374151', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                                      {copiedLink === order.orderId ? <CheckCheck size={13} /> : <Copy size={13} />}
-                                      {copiedLink === order.orderId ? 'Copied!' : 'Copy Link'}
-                                    </button>
-                                    <a href={shipsy.trackingUrl} target="_blank" rel="noopener noreferrer"
-                                      onClick={() => logAuditEvent('tracking_link_opened', order.orderId)}
-                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#0369a1', color: 'white', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>
-                                      <ExternalLink size={13} /> Open in Shipsy
-                                    </a>
-                                  </div>
+                                    );
+                                  })()}
+                                  {shipsy.trackingUrl && (
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                      <button
+                                        title="Copy tracking link to clipboard"
+                                        onClick={() => {
+                                          navigator.clipboard?.writeText(shipsy.trackingUrl).catch(() => {});
+                                          setCopiedLink(order.orderId);
+                                          setTimeout(() => setCopiedLink(null), 2000);
+                                          logAuditEvent('tracking_link_copied', order.orderId);
+                                        }}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: copiedLink === order.orderId ? '#d1fae5' : '#f3f4f6', color: copiedLink === order.orderId ? '#065f46' : '#374151', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                                        {copiedLink === order.orderId ? <CheckCheck size={13} /> : <Copy size={13} />}
+                                        {copiedLink === order.orderId ? 'Copied!' : 'Copy Link'}
+                                      </button>
+                                      <a href={shipsy.trackingUrl} target="_blank" rel="noopener noreferrer"
+                                        onClick={() => logAuditEvent('tracking_link_opened', order.orderId)}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#0369a1', color: 'white', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>
+                                        <ExternalLink size={13} /> Open in Shipsy
+                                      </a>
+                                    </div>
+                                  )}
                                 </>
                               )}
                             </div>
