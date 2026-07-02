@@ -18,6 +18,7 @@ export default function CRMCreateSR({ order, product: prefillProduct, customer, 
   const [state, setState] = useState(customer?.addresses?.[0]?.state || '');
   const [serviceNote, setServiceNote] = useState('');
   const [eligibility, setEligibility] = useState(null);
+  const [showPaidModal, setShowPaidModal] = useState(false);
   const [payLink, setPayLink] = useState(null);
   const [linkSent, setLinkSent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -42,6 +43,7 @@ export default function CRMCreateSR({ order, product: prefillProduct, customer, 
     setEligibility({ type: isPaid ? 'Paid' : 'Free', charges, warranty: warrantyStatus });
     setPayLink(null);
     setLinkSent(false);
+    if (isPaid) setShowPaidModal(true);
   };
 
   const handleGeneratePayLink = () => {
@@ -258,6 +260,24 @@ export default function CRMCreateSR({ order, product: prefillProduct, customer, 
           <button className="btn-secondary" style={{ borderRadius: 6 }} onClick={onBack}>Cancel</button>
         </div>
       </div>
+
+      {/* Paid service info modal */}
+      {showPaidModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: '32px 28px 28px', maxWidth: 360, width: '90%', position: 'relative', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <button onClick={() => setShowPaidModal(false)} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#3b3b5c', lineHeight: 1 }}>✕</button>
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#1a1a2e', marginBottom: 16, lineHeight: 1.3 }}>How paid services work?</div>
+            <div style={{ fontSize: 15, color: '#6b7280', lineHeight: 1.6, marginBottom: 28 }}>
+              Actual service amount will be confirmed by ResQ team, service charges will be collected by visiting engineer.
+            </div>
+            <button
+              onClick={() => setShowPaidModal(false)}
+              style={{ width: '100%', background: '#f5b800', color: '#1a1a2e', border: 'none', borderRadius: 50, padding: '14px 0', fontSize: 16, fontWeight: 800, cursor: 'pointer' }}>
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

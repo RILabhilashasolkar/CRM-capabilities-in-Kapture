@@ -5,4 +5,8 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   base: '/CRM-capabilities-in-Kapture/',
   plugins: [react(), tailwindcss()],
+  server: {
+    port: process.env.PORT ? Number(process.env.PORT) : 5174,
+    strictPort: false,
+  },
 })
